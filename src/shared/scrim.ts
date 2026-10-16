@@ -18,7 +18,7 @@ export type TeamId = 'A' | 'B';
 export type Side = 'atk' | 'def';
 
 export const TEAM_IDS: readonly TeamId[] = ['A', 'B'];
-export const MAX_PLAYERS = 12;
+export const MAX_PLAYERS = 10;
 const MAX_NAME = 32;
 const MAX_NOTE = 280;
 
@@ -281,17 +281,18 @@ export function initialState(): ScrimState {
   };
 }
 
-export function applyEvent(prev: ScrimState, event: ScrimEvent): ScrimState {
+/** legacy is only for replay/import of immutable events recorded under the old roster rules. */
+export function applyEvent(prev: ScrimState, event: ScrimEvent, legacy = false): ScrimState {
   assert(event.seq === prev.version + 1, `Evento fora de ordem (esperado ${prev.version + 1}, veio ${event.seq}).`);
-  const next = reduce(prev, event);
+  const next = reduce(prev, event, legacy);
   return { ...next, version: event.seq, updatedAt: event.at };
 }
 
 export function replay(events: readonly ScrimEvent[]): ScrimState {
-  return events.reduce(applyEvent, initialState());
+  return events.reduce((state, event) => applyEvent(state, event, true), initialState());
 }
 
-function reduce(s: ScrimState, e: ScrimEvent): ScrimState {
+function reduce(s: ScrimState, e: ScrimEvent, legacy = false): ScrimState {
   switch (e.type) {
     case 'scrim.create':
       assert(s.version === 0, 'A scrim já foi criada.');
@@ -323,7 +324,7 @@ function reduce(s: ScrimState, e: ScrimEvent): ScrimState {
     case 'player.add': {
       assert(typeof e.playerId === 'string' && /^[\w-]{1,40}$/.test(e.playerId), 'ID de jogador inválido.');
       assert(!s.players.some((p) => p.id === e.playerId), 'Jogador já existe.');
-      assert(s.players.length < MAX_PLAYERS, `Máximo de ${MAX_PLAYERS} jogadores.`);
+      assert(s.players.length < (legacy ? 12 : MAX_PLAYERS), `Máximo de ${MAX_PLAYERS} jogadores.`);
       const name = cleanText(e.name, MAX_NAME, 'Nome do jogador');
       assert(!s.players.some((p) => p.name.toLowerCase() === name.toLowerCase()), 'Já existe um jogador com esse nome.');
       return { ...s, players: [...s.players, { id: e.playerId, name, team: null }] };
@@ -349,6 +350,10 @@ function reduce(s: ScrimState, e: ScrimEvent): ScrimState {
       requirePhase(s, 'setup');
       findPlayer(s, e.playerId);
       assert(e.team === null || isTeam(e.team), 'Time inválido.');
+      if (!legacy && e.team !== null) {
+        const count = s.players.filter((p) => p.team === e.team && p.id !== e.playerId).length;
+        assert(count < 5, 'Este time já possui cinco jogadores.');
+      }
       return {
         ...s,
         players: s.players.map((p) => (p.id === e.playerId ? { ...p, team: e.team } : p)),
@@ -359,6 +364,7 @@ function reduce(s: ScrimState, e: ScrimEvent): ScrimState {
     case 'teams.set': {
       requirePhase(s, 'setup');
       assert(Array.isArray(e.A) && Array.isArray(e.B), 'Times inválidos.');
+      assert(legacy || (e.A.length <= 5 && e.B.length <= 5), 'Cada time aceita no máximo cinco jogadores.');
       const ids = [...e.A, ...e.B];
       assert(new Set(ids).size === ids.length, 'Um jogador não pode estar nos dois times.');
       ids.forEach((id) => findPlayer(s, id));
@@ -374,6 +380,8 @@ function reduce(s: ScrimState, e: ScrimEvent): ScrimState {
       requirePhase(s, 'setup');
       assert(isTeam(e.first), 'Time inválido.');
       assert(s.pool.length === POOL_SIZE, `A pool precisa ter ${POOL_SIZE} mapas.`);
+      assert(legacy || s.players.length === 10, 'A scrim precisa ter dez jogadores.');
+      assert(legacy || ['A', 'B'].every((team) => s.players.filter((p) => p.team === team).length === 5), 'Monte dois times de cinco jogadores.');
       return { ...s, phase: 'veto', vetoFirst: e.first, veto: [] };
 
     case 'veto.ban':

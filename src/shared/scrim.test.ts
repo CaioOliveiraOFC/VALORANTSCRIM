@@ -18,6 +18,12 @@ import type { SeriesFormat } from './veto.js';
 function scrim(format: SeriesFormat = 'bo3') {
   let state = applyEvent(initialState(), { seq: 1, at: 0, type: 'scrim.create', id: 'abc123', title: 'Teste', format });
   const run = (cmd: Command) => {
+    if (cmd.type === 'veto.start' && state.players.length === 0) {
+      for (let i = 0; i < 10; i++) {
+        state = applyEvent(state, { seq: state.version + 1, at: state.version * 1000, type: 'player.add', playerId: 'p' + i, name: 'Jogador ' + i });
+        state = applyEvent(state, { seq: state.version + 1, at: state.version * 1000, type: 'player.assign', playerId: 'p' + i, team: i < 5 ? 'A' : 'B' });
+      }
+    }
     state = applyEvent(state, { ...cmd, seq: state.version + 1, at: state.version * 1000 } as ScrimEvent);
     return state;
   };
@@ -173,5 +179,38 @@ describe('integridade do log', () => {
     expect(() => run({ type: 'player.add', playerId: 'p1', name: '   ' })).toThrow(DomainError);
     run({ type: 'player.add', playerId: 'p1', name: 'Caio' });
     expect(() => run({ type: 'player.add', playerId: 'p2', name: 'caio' })).toThrow('Já existe');
+  });
+});
+
+describe('rosters de dez jogadores e compatibilidade do histórico', () => {
+  it('recusa o 11º jogador e um sexto jogador em qualquer time', () => {
+    const {run}=scrim();
+    for(let i=0;i<10;i++) run({type:'player.add',playerId:`p${i}`,name:`Player ${i}`});
+    expect(()=>run({type:'player.add',playerId:'extra',name:'Extra'})).toThrow('Máximo de 10');
+    for(let i=0;i<5;i++) run({type:'player.assign',playerId:`p${i}`,team:'A'});
+    expect(()=>run({type:'player.assign',playerId:'p5',team:'A'})).toThrow('cinco');
+    expect(()=>run({type:'teams.set',A:['p0','p1','p2','p3','p4','p5'],B:[]})).toThrow('cinco');
+  });
+  it('exige dez jogadores, todos em dois times de cinco, para iniciar veto', () => {
+    const {run,get}=scrim();
+    run({type:'player.add',playerId:'p0',name:'Player 0'});
+    expect(()=>run({type:'veto.start',first:'A'})).toThrow('dez jogadores');
+    for(let i=1;i<10;i++) run({type:'player.add',playerId:`p${i}`,name:`Player ${i}`});
+    expect(()=>run({type:'veto.start',first:'A'})).toThrow('dois times de cinco');
+    run({type:'teams.set',A:['p0','p1','p2','p3','p4'],B:['p5','p6','p7','p8','p9']});
+    run({type:'veto.start',first:'A'});expect(get().phase).toBe('veto');
+  });
+  it('importa logs legados com 12 jogadores ou veto sem roster sem alterar os eventos', () => {
+    let state=applyEvent(initialState(),{seq:1,at:0,type:'scrim.create',id:'legacy1',title:'Legacy',format:'bo3'});
+    const events:ScrimEvent[]=[];
+    for(let i=0;i<12;i++) {
+      const e:ScrimEvent={type:'player.add',seq:i+2,at:i+1,playerId:`p${i}`,name:`Player ${i}`};
+      events.push(e);state=applyEvent(state,e,true);
+    }
+    expect(state.players).toHaveLength(12);
+    const old=applyEvent(initialState(),{seq:1,at:0,type:'scrim.create',id:'legacy2',title:'Legacy',format:'bo3'});
+    expect(applyEvent(old,{seq:2,at:1,type:'veto.start',first:'A'},true).phase).toBe('veto');
+    expect(()=>applyEvent(old,{seq:2,at:1,type:'veto.start',first:'A'})).toThrow('dez');
+    expect(events[0]!.seq).toBe(2);
   });
 });

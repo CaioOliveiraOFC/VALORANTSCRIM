@@ -1,5 +1,7 @@
 # Scrims VALORANT
 
+> **Deploy Vercel + Supabase:** consulte [README-VERCEL.md](./README-VERCEL.md). O fluxo abaixo descreve o servidor Docker/Node legado; a migração serverless usa Postgres + Supabase Realtime.
+
 Organizador de scrims com **sala em tempo real**: um admin monta os times, conduz o
 veto e marca o placar; até dezenas de espectadores acompanham pelo mesmo link, sem
 compartilhar tela. Tudo é **gravado como log de eventos** para gerar relatório depois.
