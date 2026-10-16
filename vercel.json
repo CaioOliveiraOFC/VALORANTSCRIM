@@ -1,0 +1,41 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/api/scrims/:id/report.md",
+      "destination": "/api/index?route=scrims/:id/report.md"
+    },
+    {
+      "source": "/api/scrims/:id/command",
+      "destination": "/api/index?route=scrims/:id/command"
+    },
+    {
+      "source": "/api/scrims/:id/session",
+      "destination": "/api/index?route=scrims/:id/session"
+    },
+    {
+      "source": "/api/scrims/:id",
+      "destination": "/api/index?route=scrims/:id"
+    },
+    {
+      "source": "/api/scrims",
+      "destination": "/api/index?route=scrims"
+    },
+    {
+      "source": "/api/health",
+      "destination": "/api/index?route=health"
+    },
+    {
+      "source": "/preview.html",
+      "destination": "/preview.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "devCommand": "vite --host 0.0.0.0 --port $PORT"
+}

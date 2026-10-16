@@ -2,3 +2,8 @@ node_modules/
 dist/
 dist-server/
 data/
+.env
+.env.*
+!.env.example
+
+.vercel/

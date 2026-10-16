@@ -102,7 +102,7 @@ function TeamColumn({ team, editable }: { team: TeamId; editable: boolean }) {
 
   return (
     <section className={`card team team-${team}`}>
-      {isAdmin ? (
+      {editable ? (
         <input
           className="team-name"
           defaultValue={info.name}
@@ -196,7 +196,7 @@ function StartVeto() {
             </label>
           ))}
         </fieldset>
-        <button className="primary" onClick={() => act({ type: 'veto.start', first })}>
+        <button className="primary" disabled={uneven || state.players.length !== 10} onClick={() => act({ type: 'veto.start', first })}>
           Começar veto
         </button>
       </div>

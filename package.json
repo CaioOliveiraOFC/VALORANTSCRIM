@@ -8,11 +8,12 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "concurrently -k -n server,client \"tsx watch src/server/index.ts\" \"vite\"",
+    "dev": "npx --yes vercel@64.4.0 dev",
     "build": "tsc -p tsconfig.json --noEmit && vite build && tsc -p tsconfig.server.json",
     "start": "node dist-server/server/index.js",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "import:legacy": "tsx scripts/import-legacy.ts"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -20,12 +21,15 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
     "@types/node": "^22.9.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@types/react-test-renderer": "^18.3.1",
     "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^4.3.3",
     "concurrently": "^9.1.0",
+    "react-test-renderer": "^18.3.1",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3",
     "vite": "^5.4.10",
