@@ -177,3 +177,35 @@ button.map-card:hover { border-color: var(--accent); }
   .series { font-size: 0.95rem; }
   .history a { grid-template-columns: 1fr; }
 }
+
+/* Importação de customizadas e associação acessível por arrastar ou selecionar. */
+select { font: inherit; color: inherit; border: 1px solid var(--border); background: var(--bg); border-radius: 6px; padding: 8px 12px; max-width: 100%; }
+.mapping-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+.mapping-team { display: grid; gap: 8px; margin-bottom: 18px; }
+.mapping-team h4 { margin: 10px 0 4px; }
+.mapping-player, .mapping-target { min-width: 0; border: 1px solid var(--border); border-radius: 8px; }
+.mapping-player { display: grid; text-align: left; gap: 3px; cursor: grab; white-space: normal; min-height: 80px; }
+.mapping-player strong, .mapping-target strong { overflow-wrap: anywhere; }
+.mapping-player small, .mapping-target small { color: var(--muted); display: block; white-space: normal; }
+.mapping-player.on { outline: 2px solid var(--accent); }
+.mapping-player.linked, .mapping-target.linked { border-color: var(--ok); }
+.mapping-target.pending { border-style: dashed; }
+.mapping-target { display: flex; align-items: center; background: var(--bg); min-height: 80px; }
+.mapping-target > button:first-child { flex: 1; text-align: left; white-space: normal; background: none; border: none; min-width: 0; }
+.mapping-target > button:first-child:disabled { opacity: 1; }
+.mapping-target > button.ghost { font-size: 0.8rem; padding: 5px; margin: 4px; }
+.mapping-review { display: flex; align-items: flex-start; gap: 10px; }
+.mapping-review input { width: 20px; height: 20px; flex-shrink: 0; }
+.import-results { display: grid; gap: 8px; }
+.import-results button { display: grid; text-align: left; white-space: normal; gap: 4px; }
+.import-results button.on { border-color: var(--accent); }
+.import-results small { color: var(--muted); }
+.import-error { color: var(--accent); }
+.table-scroll { overflow-x: auto; }
+.riot-id { display: block; color: var(--muted); font-weight: normal; font-size: 0.75rem; }
+@media (max-width: 600px) {
+  .mapping-columns { gap: 8px; }
+  .mapping-player, .mapping-target { font-size: 0.8rem; min-height: 115px; }
+  .mapping-target { flex-direction: column; align-items: stretch; }
+  .import-panel > .row { align-items: flex-start; }
+}

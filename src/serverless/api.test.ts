@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { createHash } from 'node:crypto';
+import { readyScrim, sampleLinks, sampleMatch, rawMatch } from '../test/import-fixture.js';
 import serve from '../../api/index.js';
 import { applyEvent, initialState, type ScrimEvent, type ScrimState } from '../shared/scrim.js';
 
@@ -10,6 +11,8 @@ const rows = new Map<string, Row>();
 let port: number;
 let server: http.Server;
 let casConflict = false;
+let lookupAllowed = true;
+let providerCalls = 0;
 const dbCalls: string[] = [];
 function call(path: string, method = 'GET', body?: unknown): Promise<{status: number; body: any; text: string}> {
   return new Promise((resolve, reject) => {
@@ -29,18 +32,26 @@ beforeAll(async () => {
 });
 afterAll(async () => { await new Promise<void>((resolve,reject) => server.close((e) => e ? reject(e) : resolve())); });
 beforeEach(() => {
-  rows.clear(); dbCalls.length=0; casConflict=false;
+  rows.clear(); dbCalls.length=0; casConflict=false; lookupAllowed=true; providerCalls=0;
+  vi.stubEnv('HENRIK_API_KEY','provider-test-key');
   vi.stubEnv('SUPABASE_URL','https://test.supabase.co');
   vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY','server-test-key');
   vi.stubGlobal('fetch',vi.fn(async (input: string, options: RequestInit) => {
-    const u=new URL(input);dbCalls.push(u.pathname+u.search);
+    const u=new URL(input);
+    if (u.hostname === 'api.henrikdev.xyz') {
+      providerCalls++;
+      expect(new Headers(options.headers).get('Authorization')).toBe('provider-test-key');
+      return new Response(JSON.stringify({data:u.pathname.includes('/matches/') ? [rawMatch()] : rawMatch()}));
+    }
+    dbCalls.push(u.pathname+u.search);
     expect(new Headers(options.headers).get('apikey')).toBe('server-test-key');
     const payload=options.body ? JSON.parse(String(options.body)) : null;
     const ok=(body:unknown)=>new Response(body===null ? null : JSON.stringify(body),{status:body===null?204:200});
     if (u.pathname.endsWith('/rpc/create_scrim')) {
       rows.set(payload.p_id,{id:payload.p_id,admin_key_hash:payload.p_key_hash,state:payload.p_state,version:1,events:[payload.p_event]});return ok(null);
     }
-    if (u.pathname.endsWith('/rpc/append_scrim_event')) {
+    if (u.pathname.endsWith('/rpc/claim_match_lookup')) return ok(lookupAllowed);
+    if (u.pathname.endsWith('/rpc/append_scrim_event') || u.pathname.endsWith('/rpc/import_match_result')) {
       const r=rows.get(payload.p_id)!;
       if(casConflict || r.version!==payload.p_expected_version || r.admin_key_hash!==payload.p_key_hash) return new Response(JSON.stringify({message:'STALE_OR_FORBIDDEN'}),{status:400});
       r.state=payload.p_state;r.version++;r.events.push(payload.p_event);return ok(null);
@@ -104,4 +115,32 @@ describe('serverless HTTP API (mock Supabase REST)',()=>{
     await serve(req as http.IncomingMessage,res as unknown as http.ServerResponse);
     expect(status).toBe(201);expect(JSON.parse(body).adminKey).toBeTruthy();
   });
+  it('protects import search and details before consulting the provider', async () => {
+    const {id,adminKey}=await create();
+    expect((await call(`/api/scrims/${id}/imports`,'POST',{action:'search',region:'br',riotId:'Test#TAG'})).status).toBe(403);
+    expect(providerCalls).toBe(0);
+    const result=await call(`/api/scrims/${id}/imports`,'POST',{adminKey,action:'search',region:'br',riotId:'Test#TAG'});
+    expect(result.status).toBe(200); expect(result.body.matches[0].id).toBe(sampleMatch().id);
+    expect(result.text).not.toContain('provider-test-key');
+    lookupAllowed=false;
+    expect((await call(`/api/scrims/${id}/imports`,'POST',{adminKey,action:'detail',region:'br',matchId:sampleMatch().id})).status).toBe(429);
+    expect(providerCalls).toBe(1);
+  });
+  it('refetches authoritative match data on confirm and commits one import event', async () => {
+    const {id,adminKey}=await create(); const row=rows.get(id)!; const ready=readyScrim().state;
+    row.state={...ready,id};row.version=ready.version;
+    const body={adminKey,action:'confirm',region:'br',matchId:sampleMatch().id,mapIndex:0,redTeam:'A',links:sampleLinks(),expectedVersion:row.version,match:{score:{Red:99}}};
+    const result=await call(`/api/scrims/${id}/imports`,'POST',body);
+    expect(result.status).toBe(200);expect(providerCalls).toBe(1);
+    expect(result.body.state.maps[0].rounds).toHaveLength(15);
+    expect(result.body.state.players[0].name).toBe('Apelido 0');
+    expect(dbCalls.some(c=>c.includes('import_match_result'))).toBe(true);
+    expect((await call(`/api/scrims/${id}/imports`,'POST',body)).status).toBe(409);
+  });
+  it('rejects forged import events through the generic command endpoint', async () => {
+    const {id,adminKey}=await create();
+    expect((await call(`/api/scrims/${id}/command`,'POST',{adminKey,command:{type:'match.import',match:sampleMatch()}})).status).toBe(400);
+    expect(providerCalls).toBe(0);
+  });
+
 });

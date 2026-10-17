@@ -11,6 +11,7 @@
  * servidor valida cada comando aplicando-o antes de gravar.
  */
 
+import { applyMatchImport, type RiotIdentity, type ImportSource, type MatchImport } from './imports.js';
 import { ACTIVE_COMPETITIVE_POOL, MAPS, POOL_SIZE, isMapId, type MapId } from './maps.js';
 import { MAPS_IN_SERIES, VETO_SEQUENCES, mapsToWinSeries, type SeriesFormat, type VetoRole, type VetoStepDef } from './veto.js';
 
@@ -30,6 +31,7 @@ export interface Player {
   id: string;
   name: string;
   team: TeamId | null;
+  riot?: RiotIdentity;
 }
 
 export interface Team {
@@ -57,6 +59,8 @@ export interface PlayerStatLine {
   kills: number;
   deaths: number;
   assists: number;
+  manualCorrection?: boolean;
+  detail?: { agent: string; score: number; damage: number; headshots: number; bodyshots: number; legshots: number };
 }
 
 export interface SeriesMap {
@@ -67,6 +71,7 @@ export interface SeriesMap {
   startingSide: Record<TeamId, Side> | null;
   rounds: Round[];
   stats: Record<string, PlayerStatLine>;
+  source?: ImportSource;
 }
 
 export type Phase = 'setup' | 'veto' | 'live' | 'finished';
@@ -113,6 +118,7 @@ export type Command =
   | { type: 'note.add'; text: string };
 
 export type ScrimEvent =
+  | ({ seq: number; at: number; type: 'match.import' } & MatchImport)
   | ({ seq: number; at: number } & Command)
   | { seq: number; at: number; type: 'scrim.create'; id: string; title: string; format: SeriesFormat };
 
@@ -294,6 +300,9 @@ export function replay(events: readonly ScrimEvent[]): ScrimState {
 
 function reduce(s: ScrimState, e: ScrimEvent, legacy = false): ScrimState {
   switch (e.type) {
+    case 'match.import':
+      return applyMatchImport(s, e, e.at);
+
     case 'scrim.create':
       assert(s.version === 0, 'A scrim já foi criada.');
       return { ...s, id: e.id, title: cleanText(e.title, 60, 'Título'), format: e.format, createdAt: e.at };
@@ -438,6 +447,7 @@ function reduce(s: ScrimState, e: ScrimEvent, legacy = false): ScrimState {
       // O último round registrado está no último mapa com rounds.
       const idx = s.maps.findLastIndex((m) => m.rounds.length > 0);
       assert(idx >= 0, 'Nenhum round para desfazer.');
+      assert(!s.maps[idx]!.source, 'Rounds importados não podem ser desfeitos manualmente.');
       const maps = s.maps.map((m, i) => (i === idx ? { ...m, rounds: m.rounds.slice(0, -1) } : m));
       return { ...s, maps, phase: 'live' };
     }
@@ -451,7 +461,7 @@ function reduce(s: ScrimState, e: ScrimEvent, legacy = false): ScrimState {
       const { kills, deaths, assists } = e.line ?? ({} as PlayerStatLine);
       for (const n of [kills, deaths, assists]) assert(Number.isInteger(n) && n >= 0 && n <= 200, 'Estatística inválida.');
       const maps = s.maps.map((m, i) =>
-        i === e.mapIndex ? { ...m, stats: { ...m.stats, [e.playerId]: { kills, deaths, assists } } } : m,
+        i === e.mapIndex ? { ...m, stats: { ...m.stats, [e.playerId]: { ...m.stats[e.playerId], kills, deaths, assists, ...(m.source ? { manualCorrection: true } : {}) } } } : m,
       );
       return { ...s, maps };
     }

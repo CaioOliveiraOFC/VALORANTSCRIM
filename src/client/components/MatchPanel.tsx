@@ -8,10 +8,10 @@ import {
   seriesScore,
   seriesWinner,
   sideInRound,
-  type PlayerStatLine,
   type SeriesMap,
   type TeamId,
 } from '../../shared/scrim';
+import { ImportMatchPanel } from './ImportMatchPanel';
 import { useRoom } from './ScrimRoom';
 
 const SIDE_LABEL = { atk: 'Ataque', def: 'Defesa' } as const;
@@ -57,6 +57,7 @@ export function MatchPanel() {
         })}
       </nav>
 
+      <ImportMatchPanel key={index} mapIndex={index} />
       <Scoreboard map={map} index={index} isLive={index === live} />
       <RoundStrip map={map} />
       <StatsTable map={map} index={index} />
@@ -162,12 +163,12 @@ function RoundStrip({ map }: { map: SeriesMap }) {
   );
 }
 
-function StatsTable({ map, index }: { map: SeriesMap; index: number }) {
+export function StatsTable({ map, index }: { map: SeriesMap; index: number }) {
   const { state, isAdmin, act } = useRoom();
   const players = state.players.filter((p) => p.team);
   if (!players.length || (!isAdmin && Object.keys(map.stats).length === 0)) return null;
 
-  const save = (playerId: string, field: keyof PlayerStatLine, raw: string) => {
+  const save = (playerId: string, field: 'kills' | 'deaths' | 'assists', raw: string) => {
     const current = map.stats[playerId] ?? { kills: 0, deaths: 0, assists: 0 };
     const value = Math.max(0, Math.min(200, Math.trunc(Number(raw) || 0)));
     if (current[field] === value && map.stats[playerId]) return;
@@ -177,7 +178,9 @@ function StatsTable({ map, index }: { map: SeriesMap; index: number }) {
   return (
     <section className="card">
       <h2>Estatísticas do mapa</h2>
-      {isAdmin && <p className="muted small">Copie do placar final do jogo (TAB). Opcional, mas enriquece o relatório.</p>}
+      {isAdmin && <p className="muted small">{map.source ? 'Dados importados da HenrikDev. Correções manuais de K/D/A ficam registradas no histórico.' : 'Importe uma customizada acima ou preencha o placar final (TAB) manualmente.'}</p>}
+      {map.source && <p className="muted small">Fonte: HenrikDev · <a href={`https://tracker.gg/valorant/match/${map.source.matchId}`} target="_blank" rel="noreferrer">Ver partida</a> · {new Date(map.source.startedAt).toLocaleString('pt-BR')} · {Math.round(map.source.durationMs / 60000)} min</p>}
+      <div className="table-scroll">
       <table className="stats">
         <thead>
           <tr>
@@ -185,6 +188,7 @@ function StatsTable({ map, index }: { map: SeriesMap; index: number }) {
             <th>K</th>
             <th>D</th>
             <th>A</th>
+            {map.source && <><th>Agente</th><th>Dano</th><th>ADR</th><th>ACS</th><th>HS%</th></>}
           </tr>
         </thead>
         <tbody>
@@ -195,7 +199,7 @@ function StatsTable({ map, index }: { map: SeriesMap; index: number }) {
                 const line = map.stats[p.id];
                 return (
                   <tr key={p.id} className={`team-${t}`}>
-                    <td>{p.name}</td>
+                    <td>{p.name}{p.riot && <small className="riot-id">{p.riot.name}#{p.riot.tag}</small>}{line?.manualCorrection && <small> K/D/A corrigido</small>}</td>
                     {(['kills', 'deaths', 'assists'] as const).map((f) => (
                       <td key={f}>
                         {isAdmin ? (
@@ -214,12 +218,18 @@ function StatsTable({ map, index }: { map: SeriesMap; index: number }) {
                         )}
                       </td>
                     ))}
+                    {map.source && <>
+                      <td>{line?.detail?.agent ?? '—'}</td><td>{line?.detail?.damage ?? '—'}</td>
+                      <td>{line?.detail && map.rounds.length ? (line.detail.damage / map.rounds.length).toFixed(1) : '—'}</td>
+                      <td>{line?.detail && map.rounds.length ? (line.detail.score / map.rounds.length).toFixed(1) : '—'}</td>
+                      <td>{line?.detail ? ((line.detail.headshots + line.detail.bodyshots + line.detail.legshots) ? (100 * line.detail.headshots / (line.detail.headshots + line.detail.bodyshots + line.detail.legshots)).toFixed(1) + '%' : '—') : '—'}</td>
+                    </>}
                   </tr>
                 );
               }),
           )}
         </tbody>
-      </table>
+      </table></div>
     </section>
   );
 }

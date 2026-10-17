@@ -39,8 +39,9 @@ export function buildMapReport(state: ScrimState, map: SeriesMap, index: number)
   let streak: MapReport['longestStreak'] = null;
   let run = { team: null as TeamId | null, length: 0, from: 0 };
 
+  const startingSide = map.source?.actualStartingSide ?? map.startingSide;
   for (const r of map.rounds) {
-    if (map.startingSide) bySide[r.winner][sideInRound(map.startingSide[r.winner], r.number)]++;
+    if (startingSide) bySide[r.winner][sideInRound(startingSide[r.winner], r.number)]++;
     run = r.winner === run.team ? { ...run, length: run.length + 1 } : { team: r.winner, length: 1, from: r.number };
     if (!streak || run.length > streak.length) streak = { team: r.winner, length: run.length, from: run.from };
   }
@@ -58,7 +59,7 @@ export function buildMapReport(state: ScrimState, map: SeriesMap, index: number)
     pistols: map.rounds.filter((r) => r.number === 1 || r.number === 13).map((r) => ({ round: r.number, winner: r.winner })),
     longestStreak: streak,
     overtime: map.rounds.length > 24,
-    durationMin: first && last && last !== first ? Math.round((last.at - first.at) / 60000) : null,
+    durationMin: map.source ? Math.round(map.source.durationMs / 60000) : first && last && last !== first ? Math.round((last.at - first.at) / 60000) : null,
   };
 }
 
@@ -130,10 +131,12 @@ export function toMarkdown(state: ScrimState): string {
       return;
     }
     lines.push(`**${t('A')} ${r.score.A} x ${r.score.B} ${t('B')}**${r.overtime ? ' (prorrogação)' : ''}${r.durationMin ? ` · ~${r.durationMin} min` : ''}`, '');
-    if (map.startingSide) {
+    const startingSide = map.source?.actualStartingSide ?? map.startingSide;
+    if (map.source) lines.push(`- Fonte: HenrikDev · partida ${map.source.matchId} · início ${fmtDate(map.source.startedAt)} · importada ${fmtDate(map.source.importedAt)} pelo admin da scrim`, '');
+    if (startingSide) {
       lines.push('| Time | Lado inicial | Rounds no ataque | Rounds na defesa |', '|---|---|---|---|');
       for (const id of TEAM_IDS) {
-        lines.push(`| ${t(id)} | ${sideLabel(map.startingSide[id])} | ${r.bySide[id].atk} | ${r.bySide[id].def} |`);
+        lines.push(`| ${t(id)} | ${sideLabel(startingSide[id])} | ${r.bySide[id].atk} | ${r.bySide[id].def} |`);
       }
       lines.push('');
     }
@@ -147,10 +150,10 @@ export function toMarkdown(state: ScrimState): string {
     }
     const stats = Object.entries(map.stats);
     if (stats.length) {
-      lines.push('', '| Jogador | Time | K | D | A | K/D |', '|---|---|---|---|---|---|');
+      lines.push('', '| Jogador | Time | K | D | A | K/D | Agente | Dano | ADR | ACS | HS% |', '|---|---|---|---|---|---|---|---|---|---|---|');
       for (const [pid, s] of stats) {
         const p = state.players.find((x) => x.id === pid);
-        if (p?.team) lines.push(`| ${p.name} | ${t(p.team)} | ${s.kills} | ${s.deaths} | ${s.assists} | ${kd(s.kills, s.deaths)} |`);
+        if (p?.team) lines.push(`| ${p.name}${s.manualCorrection ? ' (K/D/A corrigido)' : ''} | ${t(p.team)} | ${s.kills} | ${s.deaths} | ${s.assists} | ${kd(s.kills, s.deaths)} | ${s.detail?.agent ?? '—'} | ${s.detail?.damage ?? '—'} | ${s.detail ? (s.detail.damage / map.rounds.length).toFixed(1) : '—'} | ${s.detail ? (s.detail.score / map.rounds.length).toFixed(1) : '—'} | ${s.detail && (s.detail.headshots + s.detail.bodyshots + s.detail.legshots) ? (100 * s.detail.headshots / (s.detail.headshots + s.detail.bodyshots + s.detail.legshots)).toFixed(1) : '—'} |`);
       }
     }
     lines.push('');
