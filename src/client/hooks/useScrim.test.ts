@@ -2,6 +2,7 @@ import { createElement } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { applyEvent, initialState, type ScrimEvent, type ScrimState } from '../../shared/scrim';
+import { readyScrim, sampleMatch, sampleLinks } from '../../test/import-fixture';
 import type { useScrim as Hook } from './useScrim';
 
 let useScrim: typeof Hook;
@@ -64,4 +65,17 @@ it('reconnects after a channel error and ignores callbacks after unmount',async(
  await act(async()=>{vi.advanceTimersByTime(500);});expect(Socket.instances).toHaveLength(2);
  act(()=>client.renderer.unmount());const count=Socket.instances.length;
  act(()=>Socket.instances[1]!.open());await act(async()=>{vi.advanceTimersByTime(100000);});expect(Socket.instances).toHaveLength(count);
+});
+
+it('broadcasts imported map data and saved identities to two clients', async () => {
+ const ready=readyScrim();snapshot={state:ready.state,events:ready.events};
+ const a=await mount(),b=await mount();
+ await act(async()=>{Socket.instances[0]!.open();Socket.instances[1]!.open();});await flush();
+ const event:ScrimEvent={type:'match.import',seq:snapshot.state.version+1,at:1800000000000,match:sampleMatch(),links:sampleLinks(),mapIndex:0,redTeam:'A'};
+ snapshot={state:applyEvent(snapshot.state,event),events:[...snapshot.events,event]};
+ act(()=>{for(const socket of Socket.instances)socket.message('postgres_changes',{data:{record:{event}}});});
+ expect(a.get().state?.maps[0]?.source?.matchId).toBe(sampleMatch().id);
+ expect(b.get().state?.players[0]?.name).toBe('Apelido 0');
+ expect(b.get().state?.players[0]?.riot?.puuid).toBe('puuid-0');
+ expect(b.get().state?.maps[0]?.stats.p0?.detail?.agent).toBe('Fade');
 });

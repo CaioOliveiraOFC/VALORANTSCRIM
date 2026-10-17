@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { applyEvent, type Command, type ScrimEvent, type ScrimState } from '../../shared/scrim';
 import type { Role } from '../../shared/protocol';
+import type { ExternalMatch } from '../../shared/imports';
 import { newId } from '../util';
 
 export type ConnectionStatus = 'connecting' | 'online' | 'offline' | 'not-found';
@@ -237,5 +238,17 @@ export function useScrim(scrimId: string, adminKey: string | undefined) {
     acceptEvent(result.event);
   }, [scrimId, adminKey, acceptEvent]);
 
-  return { state, events, role, status, presence, send };
+  const importRequest = useCallback(async (input: Record<string, unknown>) => {
+    if (!adminKey) throw new Error('Somente o admin pode importar.');
+    const response = await fetch(`/api/scrims/${scrimId}/imports`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...input, adminKey }),
+    });
+    if (response.status === 409) void refreshRef.current();
+    const result = await responseJson<{ matches?: ExternalMatch[]; match?: ExternalMatch; event?: ScrimEvent }>(response);
+    if (result.event && stateRef.current?.id === scrimId) acceptEvent(result.event);
+    return result;
+  }, [scrimId, adminKey, acceptEvent]);
+
+  return { state, events, role, status, presence, send, importRequest };
 }

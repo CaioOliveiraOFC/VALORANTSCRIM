@@ -30,7 +30,7 @@ export class Room {
   /** Valida o comando aplicando-o, grava no log e só então transmite. */
   dispatch(command: Command): Promise<ScrimEvent> {
     const run = async () => {
-      if (typeof command !== 'object' || command === null || (command.type as string) === 'scrim.create') {
+      if (typeof command !== 'object' || command === null || ['scrim.create', 'match.import'].includes(command.type as string)) {
         throw new DomainError('Comando inválido.');
       }
       const event = { ...command, seq: this.state.version + 1, at: Date.now() } as ScrimEvent;

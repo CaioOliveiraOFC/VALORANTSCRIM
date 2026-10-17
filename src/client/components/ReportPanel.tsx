@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { buildMapReport, kd, playerTotals } from '../../shared/report';
 import { TEAM_IDS, seriesScore, seriesWinner } from '../../shared/scrim';
 import { fmtDateTime } from '../util';
+import { StatsTable } from './MatchPanel';
 import { useRoom } from './ScrimRoom';
 
 export function ReportPanel({ scrimId }: { scrimId: string }) {
@@ -41,7 +42,7 @@ export function ReportPanel({ scrimId }: { scrimId: string }) {
         if (!map.rounds.length) return null;
         const r = buildMapReport(state, map, i);
         return (
-          <section key={i} className="card">
+          <div key={i} className="stack"><section className="card">
             <h2>
               Mapa {i + 1}: {r.mapName} <span className="muted">(pick {r.pickedBy})</span>
             </h2>
@@ -63,7 +64,7 @@ export function ReportPanel({ scrimId }: { scrimId: string }) {
                 {TEAM_IDS.map((id) => (
                   <tr key={id} className={`team-${id}`}>
                     <td>{t(id)}</td>
-                    <td>{map.startingSide?.[id] === 'atk' ? 'Ataque' : 'Defesa'}</td>
+                    <td>{(map.source?.actualStartingSide ?? map.startingSide)?.[id] === 'atk' ? 'Ataque' : 'Defesa'}</td>
                     <td>{r.bySide[id].atk}</td>
                     <td>{r.bySide[id].def}</td>
                   </tr>
@@ -82,7 +83,7 @@ export function ReportPanel({ scrimId }: { scrimId: string }) {
                 </li>
               )}
             </ul>
-          </section>
+          </section>{map.source && <StatsTable map={map} index={i} />}</div>
         );
       })}
 

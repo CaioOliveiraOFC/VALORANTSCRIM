@@ -11,6 +11,7 @@ export function Timeline({ events }: { events: ScrimEvent[] }) {
 
   const describe = (e: ScrimEvent): string => {
     switch (e.type) {
+      case 'match.import': return `Partida ${e.match.id} importada da HenrikDev no mapa ${e.mapIndex + 1}, com dez associações confirmadas pelo admin`;
       case 'scrim.create': return `Scrim criada: ${e.title}`;
       case 'settings.update': return `Configuração alterada${e.format ? ` (formato ${e.format.toUpperCase()})` : ''}${e.pool ? ` (pool: ${e.pool.map((m) => MAPS[m].name).join(', ')})` : ''}${e.title ? ` (título: ${e.title})` : ''}`;
       case 'team.rename': return `Time ${e.team} renomeado para ${e.name}`;

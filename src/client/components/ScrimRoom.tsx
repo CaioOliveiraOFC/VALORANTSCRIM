@@ -12,6 +12,7 @@ import { Timeline } from './Timeline';
 import { VetoPanel } from './VetoPanel';
 
 interface RoomCtx {
+  importRequest: ReturnType<typeof useScrim>['importRequest'];
   state: ScrimState;
   isAdmin: boolean;
   /** Envia um comando; erros viram aviso na tela. */
@@ -41,7 +42,7 @@ const tabForPhase = (phase: ScrimState['phase']): Tab =>
 
 export function ScrimRoom({ scrimId }: { scrimId: string }) {
   const [adminKey] = useState(() => readAdminKey(scrimId));
-  const { state, events, role, status, presence, send } = useScrim(scrimId, adminKey);
+  const { state, events, role, status, presence, send, importRequest } = useScrim(scrimId, adminKey);
   const [tab, setTab] = useState<Tab | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const isAdmin = role === 'admin';
@@ -72,7 +73,7 @@ export function ScrimRoom({ scrimId }: { scrimId: string }) {
     [send],
   );
 
-  const ctx = useMemo(() => (state ? { state, isAdmin, act } : null), [state, isAdmin, act]);
+  const ctx = useMemo(() => (state ? { state, isAdmin, act, importRequest } : null), [state, isAdmin, act, importRequest]);
 
   if (status === 'not-found') {
     return (

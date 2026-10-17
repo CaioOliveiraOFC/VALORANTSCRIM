@@ -52,3 +52,7 @@ O endpoint `/api/health` consulta o banco; variáveis presentes sem SQL/permiss�
 `npm test` cobre domínio, HTTP serverless com REST Supabase simulado, reconexão/sincronização de dois clientes React com WebSocket simulado e SQL real no Postgres embutido PGlite (grants, RLS, RPCs, CAS, rollback e importação). Os testes locais não certificam a publicação Realtime de um projeto Supabase hospedado nem substituem a validação em duas abas contra o Preview. Não exponha valores das variáveis em logs ou no PR.
 
 `public/preview.html` é uma demonstração independente, sem transmissão de eventos reais. A aplicação React existente é mantida; nenhuma proposta de redesenho foi aplicada a ela.
+
+## Importação automática de customizadas
+
+A aba Partida permite importar resultados da HenrikDev e associar jogadores por drag and drop ou seleção. A funcionalidade exige uma nova migração SQL e o segredo de servidor `HENRIK_API_KEY` na Vercel. Consulte [MATCH-IMPORT.md](docs/MATCH-IMPORT.md) antes de ativar o deploy. O fluxo manual continua disponível.

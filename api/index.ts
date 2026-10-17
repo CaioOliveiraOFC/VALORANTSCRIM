@@ -1,6 +1,8 @@
 /** API serverless Vercel: somente o serviço usa a chave secreta do Supabase. */
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { fetchMatch, findMatches, ProviderError, regionCode } from '../src/server/henrik.js';
+import type { PlayerLink } from '../src/shared/imports.js';
 import { MAPS } from '../src/shared/maps.js';
 import { toMarkdown } from '../src/shared/report.js';
 import { applyEvent, initialState, DomainError, seriesScore, type Command, type ScrimEvent, type ScrimState } from '../src/shared/scrim.js';
@@ -38,6 +40,8 @@ async function db(path: string, options: RequestInit = {}): Promise<any> {
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({})) as { message?: string; code?: string };
+    if (['rpc/claim_match_lookup', 'rpc/import_match_result'].includes(path) && error.code === 'PGRST202') throw new ApiError(503, 'Importação indisponível: aplique a migração 20261017_match_imports.sql no Supabase.');
+    if (path === 'rpc/import_match_result' && error.code === '23505') throw new ApiError(409, 'Esta partida já foi importada nesta scrim.');
     if (error.message?.includes('STALE_OR_FORBIDDEN')) throw new ApiError(409, 'Outra ação foi gravada. Recarregue e tente novamente.');
     console.error('Erro no Supabase:', response.status, error.code);
     throw new ApiError(502, 'Falha ao consultar o banco de dados.');
@@ -157,11 +161,36 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     const body = await jsonBody(req);
     return send(res, 200, { role: authorize(current, body.adminKey) ? 'admin' : 'viewer' });
   }
+  if (path.length === 3 && path[2] === 'imports' && req.method === 'POST') {
+    const body = await jsonBody(req);
+    if (!authorize(current, body.adminKey)) throw new ApiError(403, 'Somente o admin pode importar.');
+    const region = regionCode(body.region);
+    if (!['search', 'detail', 'confirm'].includes(String(body.action))) throw new ApiError(400, 'Ação de importação inválida.');
+    const allowed = await db('rpc/claim_match_lookup', { method: 'POST', body: JSON.stringify({ p_id: id, p_key_hash: hash(body.adminKey as string) }) });
+    if (allowed !== true) throw new ApiError(429, 'Muitas consultas. Aguarde um minuto antes de buscar novamente.');
+    if (body.action === 'search') return send(res, 200, { matches: await findMatches(region, body.riotId) });
+    if (body.action === 'detail') {
+      if (typeof body.matchId !== 'string') throw new ApiError(400, 'Partida inválida.');
+      return send(res, 200, { match: (await fetchMatch(region, body.matchId)).match });
+    }
+    if (body.action !== 'confirm') throw new ApiError(400, 'Ação de importação inválida.');
+    if (body.expectedVersion !== current.version) throw new ApiError(409, 'A sala mudou. Atualize e revise a importação novamente.');
+    if (typeof body.matchId !== 'string' || !Number.isInteger(body.mapIndex) || !['A', 'B'].includes(String(body.redTeam)) || !Array.isArray(body.links) || body.links.length !== 10 || body.links.some((l: any) => !l || typeof l.playerId !== 'string' || typeof l.puuid !== 'string')) throw new ApiError(400, 'Revise as dez associações e os times.');
+    // Fetch again on confirmation: never trust scores or statistics submitted by a browser.
+    const { match, raw } = await fetchMatch(region, body.matchId);
+    const event: ScrimEvent = { type: 'match.import', seq: current.version + 1, at: Date.now(), match,
+      mapIndex: body.mapIndex as number, redTeam: body.redTeam as 'A' | 'B',
+      links: body.links.map((l: PlayerLink) => ({ playerId: l.playerId, puuid: l.puuid })) };
+    const state = applyEvent(current.state, event);
+    await db('rpc/import_match_result', { method: 'POST', body: JSON.stringify({ p_id: id, p_key_hash: hash(body.adminKey as string),
+      p_expected_version: current.version, p_state: state, p_event: event, p_raw: raw }) });
+    return send(res, 200, { state, event });
+  }
   if (path.length === 3 && path[2] === 'command' && req.method === 'POST') {
     const body = await jsonBody(req);
     if (!authorize(current, body.adminKey)) throw new ApiError(403, 'Somente o admin pode editar.');
     const command = body.command;
-    if (!command || typeof command !== 'object' || Array.isArray(command) || !('type' in command) || command.type === 'scrim.create') {
+    if (!command || typeof command !== 'object' || Array.isArray(command) || !('type' in command) || (command.type === 'scrim.create' || command.type === 'match.import')) {
       throw new ApiError(400, 'Comando inválido.');
     }
     const event = { ...(command as Command), seq: current.version + 1, at: Date.now() } as ScrimEvent;
@@ -178,6 +207,7 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
 export default async function serve(req: IncomingMessage, res: ServerResponse) {
   try { await handler(req, res); }
   catch (err) {
+    if (err instanceof ProviderError) return send(res, err.status, { error: err.message });
     if (err instanceof ApiError) return send(res, err.status, { error: err.message });
     if (err instanceof DomainError) return send(res, 400, { error: err.message });
     console.error('Erro inesperado:', err instanceof Error ? err.message : err);
