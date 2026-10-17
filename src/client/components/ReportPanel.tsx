@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { buildMapReport, kd, playerTotals } from '../../shared/report';
 import { TEAM_IDS, seriesScore, seriesWinner } from '../../shared/scrim';
 import { fmtDateTime } from '../util';
+import { Icon } from './Icon';
 import { StatsTable } from './MatchPanel';
 import { useRoom } from './ScrimRoom';
 
@@ -26,10 +27,10 @@ export function ReportPanel({ scrimId }: { scrimId: string }) {
             {t('A')} {series.A} x {series.B} {t('B')} {winner ? `· vitória de ${t(winner)}` : '· em andamento'}
           </h2>
           <a className="button" href={`/api/scrims/${scrimId}/report.md`} download>
-            Baixar relatório (.md)
+            <Icon name="download" />Baixar relatório (.md)
           </a>
           <a className="button" href={`/api/scrims/${scrimId}`} download={`scrim-${scrimId}.json`}>
-            Exportar dados (.json)
+            <Icon name="download" />Exportar dados (.json)
           </a>
         </div>
         <p className="muted small">
@@ -51,7 +52,7 @@ export function ReportPanel({ scrimId }: { scrimId: string }) {
               {r.overtime && <span className="badge">OT</span>}
               {!!r.durationMin && <span className="muted small"> · ~{r.durationMin} min</span>}
             </p>
-            <table className="stats">
+            <div className="table-scroll"><table className="stats">
               <thead>
                 <tr>
                   <th>Time</th>
@@ -70,7 +71,7 @@ export function ReportPanel({ scrimId }: { scrimId: string }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
             <ul className="facts">
               {r.pistols.map((p) => (
                 <li key={p.round}>
@@ -90,7 +91,7 @@ export function ReportPanel({ scrimId }: { scrimId: string }) {
       {totals.length > 0 && (
         <section className="card">
           <h2>Totais por jogador</h2>
-          <table className="stats">
+          <div className="table-scroll"><table className="stats">
             <thead>
               <tr>
                 <th>Jogador</th>
@@ -113,7 +114,7 @@ export function ReportPanel({ scrimId }: { scrimId: string }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </section>
       )}
 

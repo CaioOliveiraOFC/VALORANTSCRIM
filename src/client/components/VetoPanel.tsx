@@ -13,6 +13,7 @@ export function VetoPanel() {
     return <p className="card muted">O veto começa quando o admin fechar os times.</p>;
   }
 
+  const canReset = ['veto','live'].includes(state.phase) && state.maps.every(m => m.rounds.length === 0);
   const sequence = VETO_SEQUENCES[state.format];
   const step = currentVetoStep(state);
   const free = new Set(availableMaps(state));
@@ -50,10 +51,10 @@ export function VetoPanel() {
         )}
         {isAdmin && (
           <span className="row push">
-            <button onClick={() => act({ type: 'veto.undo' })} disabled={state.veto.length === 0}>
+            <button onClick={() => act({ type: 'veto.undo' })} disabled={!canReset || state.veto.length === 0}>
               Desfazer
             </button>
-            <button className="ghost" onClick={() => confirm('Reiniciar o veto do zero?') && act({ type: 'veto.reset' })}>
+            <button className="ghost" disabled={!canReset} onClick={() => confirm('Reiniciar o veto do zero?') && act({ type: 'veto.reset' })}>
               Reiniciar
             </button>
           </span>

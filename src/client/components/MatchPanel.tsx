@@ -11,6 +11,7 @@ import {
   type SeriesMap,
   type TeamId,
 } from '../../shared/scrim';
+import { Icon } from './Icon';
 import { ImportMatchPanel } from './ImportMatchPanel';
 import { useRoom } from './ScrimRoom';
 
@@ -19,11 +20,13 @@ const SIDE_LABEL = { atk: 'Ataque', def: 'Defesa' } as const;
 export function MatchPanel() {
   const { state } = useRoom();
   const live = currentMapIndex(state);
+  const [importing, setImporting] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
 
-  if (state.maps.length === 0) return <p className="card muted">A partida começa quando o veto terminar.</p>;
+  if (state.maps.length === 0) return <div className="card empty-state"><Icon name="crosshair" /><h2>Primeiro, o veto.</h2><p>Os mapas e resultados aparecem aqui assim que os times concluírem suas escolhas.</p></div>;
 
-  const index = selected ?? (live >= 0 ? live : state.maps.length - 1);
+  const defaultIndex = live >= 0 ? live : Math.max(0, state.maps.findLastIndex(m => m.rounds.length > 0));
+  const index = selected !== null && selected < state.maps.length ? selected : defaultIndex;
   const map = state.maps[index]!;
   const series = seriesScore(state);
   const champion = seriesWinner(state);
@@ -31,12 +34,13 @@ export function MatchPanel() {
   return (
     <div className="stack">
       <section className="card series">
+        <span className="series-caption">PLACAR DA SÉRIE</span>
         <span className="team-A">{state.teams.A.name}</span>
         <span className="series-score">
           {series.A} <small>x</small> {series.B}
         </span>
         <span className="team-B">{state.teams.B.name}</span>
-        {champion && <p className="champion">🏆 {state.teams[champion].name} venceu a série</p>}
+        {champion && <p className="champion">{state.teams[champion].name} venceu a série</p>}
       </section>
 
       <nav className="map-tabs">
@@ -57,10 +61,12 @@ export function MatchPanel() {
         })}
       </nav>
 
-      <ImportMatchPanel key={index} mapIndex={index} />
+      <ImportMatchPanel key={index} mapIndex={index} onOpenChange={setImporting} />
+      {!importing && <>
       <Scoreboard map={map} index={index} isLive={index === live} />
       <RoundStrip map={map} />
       <StatsTable map={map} index={index} />
+      </>}
     </div>
   );
 }
@@ -120,7 +126,7 @@ function Scoreboard({ map, index, isLive }: { map: SeriesMap; index: number; isL
         )}
         {isAdmin && (state.phase === 'live' || state.phase === 'finished') && (
           <div className="row push">
-            <button className="ghost" onClick={() => act({ type: 'round.undo' })}>
+            <button className="ghost" disabled={!!state.maps.findLast(m => m.rounds.length > 0)?.source} title={state.maps.findLast(m => m.rounds.length > 0)?.source ? 'Rounds importados ficam preservados no histórico' : undefined} onClick={() => act({ type: 'round.undo' })}>
               Desfazer último round
             </button>
           </div>
