@@ -1,19 +1,34 @@
-# Navegação e associação de jogadores
+# Lobby da scrim
 
-A interface React recebeu uma atualização visual com tema escuro, cores distintas por time, ícones locais em SVG e componentes responsivos. A página `/preview.html` demonstrativa permanece separada da aplicação.
+A interface React foi desenhada para quem usa a sala de vez em quando e quer começar a jogar: três momentos, uma próxima ação clara e configurações secundárias recolhidas. `/preview.html` continua sendo a demonstração estática anterior; estas alterações são na aplicação real.
 
-- Início: busca por sala/time/mapa, filtros de andamento e histórico, resumo de salas e criação lateral no desktop. No celular, o histórico vem antes do formulário e há um atalho **Nova scrim**.
-- Sala: navegação lateral no desktop, barra inferior no celular e navegação por setas/Home/End no teclado. O link de espectadores fica em destaque; acesso de admin e saída ficam em **Opções da sala (•••)**.
-- Importação em três etapas: **Partida → Jogadores → Revisão**. O placar e o preenchimento manual ficam recolhidos durante a associação, para reduzir distrações.
-- Associação: um time por vez, progresso por time e total; arrastar nos dois sentidos; seleção direta em cada apelido; remover/mover um vínculo sem duplicá-lo. No celular, as listas diretas ficam em destaque e os cartões de arrastar podem ser expandidos.
-- A última etapa mostra as dez associações e exige confirmação explícita antes da chamada de importação. Campos e vínculos são mantidos ao voltar entre etapas.
-- Ao rever uma série encerrada, a aba Partida abre no último mapa jogado, sem selecionar um decider que não aconteceu.
-- Tabelas largas têm rolagem dentro do card, mantendo a navegação da página disponível. Ações de veto e desfazer são desabilitadas quando o domínio já as impediria.
+## Fluxo
 
-Não há novas dependências, variáveis, migrações de banco ou alterações de regras/API. As credenciais e configurações existentes da Vercel continuam sendo usadas.
+- **Criar sala:** formulário imediato, formato MD3 já selecionado e nome opcional. Salas recentes ficam abaixo, com busca e filtros.
+- **Preparar:** cinco vagas por time, adição direta ou colagem de uma lista. É possível escolher capitão, mover jogadores, sortear os times e editar formato/pool nas opções. Quando ambos os times estão completos, o avanço para os mapas acompanha a rolagem.
+- **Escolher mapas:** uma instrução por turno. A ordem completa e o reinício ficam recolhidos; desfazer continua disponível quando permitido.
+- **Jogar:** mapa e placar em destaque. A importação tem prioridade; rounds e K/D/A manuais ficam recolhidos. Relatório e histórico são acessos secundários.
+- **Associar:** os dez pares ficam visíveis, com sugestões de nomes e identidades já salvas. Só é preciso usar **Escolher jogador** ou **Trocar** nos pares a corrigir. O mesmo vínculo pode ser feito por clique/toque, teclado ou arrastar em ambos os sentidos. Uma identidade nunca pertence a dois apelidos.
+- **Confirmar:** jogadores e resultado são conferidos no mesmo espaço. O checkbox explícito continua obrigatório; mudar vínculo, orientação ou versão da sala exige nova conferência. O botão acompanha a rolagem quando os dez pares estão completos.
+
+A navegação segue a fase da sala. Quem abre uma série encerrada vê o último mapa jogado, sem cair no desempate que não aconteceu. As tabelas rolam internamente em telas pequenas. Foco visível, retorno do foco após ações e redução de movimento são contemplados.
+
+## Direção visual
+
+Base fria clara, azul profundo no placar e petróleo na ação principal. Manrope para leitura e Barlow Condensed para títulos e placares, hospedadas no próprio site com licenças OFL incluídas. O banner local da Lotus tem aproximadamente 63 KB; os mapas continuam usando as miniaturas leves do catálogo existente, com fallback caso o CDN falhe. Não há splash de 5 MB nem novas dependências de runtime.
+
+Capturas com dados de teste e APIs simuladas, sem alterações em scrims de produção:
+
+![Início: criação imediata e salas recentes](images/lobby-home.png)
+
+![Associação: pares resolvidos e pendentes no mesmo espaço](images/lobby-mapping.png)
 
 ## Verificação
 
-O build e os testes existentes foram executados, com atualização dos testes funcionais da associação para a navegação em etapas e cobertura da seleção direta/drag nos dois sentidos. O Chromium foi usado com APIs simuladas para conferir busca, filtros, criação, navegação por teclado, associação, revisão obrigatória, importação, relatório, times e veto nas larguras de 390 e 1440 pixels. Nenhum teste gravou dados em produção.
+Executados `npm ci`, `npm run typecheck`, `npm run build` e `npm test`: **56 testes passaram em 8 arquivos**. Os testes de associação cobrem unicidade, time incorreto, remoção, drag nos dois sentidos, revisão obrigatória e sua invalidação, orientação invertida, mapa incorreto, mudança de versão e espectador sem controles.
 
-Para revisar no Preview, abra a página inicial, uma scrim existente como espectador e uma sala de teste como admin. A importação continua exigindo veto concluído e um mapa sem placar ou estatísticas. No fluxo visual, teste um apelido diferente do Riot ID, troca de time Red/Blue e o retorno da revisão para corrigir uma associação antes de importar.
+No Chromium, com APIs simuladas: criar/buscar/filtrar sala; colar dez nomes em dois times; avanço automático para o veto; associação por drag nos dois sentidos e escolha por toque; foco pelo teclado; confirmação explícita; importação preservando apelidos; relatório e ausência de overflow da página em desktop/celular. A associação também foi conferida em 320 e 768 px, além de 390 e 1440 px. Uma cópia dos 59 eventos da scrim existente foi reproduzida localmente, como espectador, confirmando a série 0:2 e o último mapa Bind 6:13. Nenhum teste gravou dados em produção.
+
+Não há alterações de SQL, contratos de API, regras de domínio ou variáveis de ambiente. O Preview usa a configuração existente da Vercel e pode exigir login pela proteção do projeto.
+
+Para avaliar no Preview: crie uma sala descartável, cole dez nomes, confira a escolha dos mapas e importe uma customizada correspondente ao mapa atual. Corrija um vínculo e confirme que o checkbox volta a ficar desmarcado. Só importe um resultado real se quiser adicioná-lo ao histórico dessa sala de teste.

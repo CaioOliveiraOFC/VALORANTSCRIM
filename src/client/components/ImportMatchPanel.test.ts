@@ -1,70 +1,317 @@
-import { createElement, useState } from 'react';
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { readyScrim, sampleLinks, sampleMatch } from '../../test/import-fixture';
-import type { PlayerLink } from '../../shared/imports';
-const mocks=vi.hoisted(()=>({room:{} as any}));
-vi.mock('./ScrimRoom',()=>({useRoom:()=>mocks.room}));
-import { ImportMatchPanel, PlayerMatcher } from './ImportMatchPanel';
-let renderer:ReactTestRenderer;
-afterEach(()=>{if(renderer)act(()=>renderer.unmount());});
-beforeEach(()=>{mocks.room={state:readyScrim().state,isAdmin:true,importRequest:vi.fn()};});
-const button=(label:string)=>renderer.root.findAllByType('button').find(b=>b.props['aria-label']===label)!;
-it('associates by click or drop, moves unique bindings, blocks the wrong team and removes links',()=>{
- const state=readyScrim().state,match=sampleMatch();let last:PlayerLink[]=[];
- function Harness(){const [links,setLinks]=useState<PlayerLink[]>([]);last=links;return createElement(PlayerMatcher,{state,match,redTeam:'A',links,onChange:setLinks});}
- act(()=>{renderer=create(createElement(Harness));});
- act(()=>button('Selecionar Riot 0#TEST').props.onClick());act(()=>button('Associar a Apelido 0').props.onClick());
- expect(last).toEqual([{playerId:'p0',puuid:'puuid-0'}]);
- const drop=(player:string,puuid:string)=>renderer.root.findAll(n=>n.props.className?.includes('mapping-target')).find(n=>n.findAllByType('strong').some(x=>x.children.includes(player)))!.props.onDrop({preventDefault(){},dataTransfer:{getData:()=>puuid}});
- act(()=>drop('Apelido 1','puuid-0'));expect(last).toEqual([{playerId:'p1',puuid:'puuid-0'}]);
- act(()=>renderer.root.findAllByType('button').find(n=>n.props.className?.includes('team-B') && n.props['aria-pressed']!==undefined)!.props.onClick());
- act(()=>drop('Apelido 5','puuid-0'));expect(last).toEqual([{playerId:'p1',puuid:'puuid-0'}]);
- act(()=>renderer.root.findAllByType('button').find(n=>n.props.className?.includes('team-A') && n.props['aria-pressed']!==undefined)!.props.onClick());
- act(()=>button('Remover associação de Apelido 1').props.onClick());expect(last).toEqual([]);
+import { createElement, useState } from "react";
+import {
+  act,
+  create,
+  type ReactTestInstance,
+  type ReactTestRenderer,
+} from "react-test-renderer";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import {
+  readyScrim,
+  sampleLinks,
+  sampleMatch,
+} from "../../test/import-fixture";
+import type { PlayerLink } from "../../shared/imports";
+
+const mocks = vi.hoisted(() => ({ room: {} as any }));
+vi.mock("./ScrimRoom", () => ({ useRoom: () => mocks.room }));
+import { ImportMatchPanel, PlayerMatcher } from "./ImportMatchPanel";
+
+let renderer: ReactTestRenderer | undefined;
+afterEach(() => {
+  if (renderer) act(() => renderer!.unmount());
+  renderer = undefined;
 });
-it('requires all links and explicit review before sending a confirmed import',async()=>{
- const match=sampleMatch();const request=vi.fn().mockResolvedValueOnce({matches:[match]}).mockResolvedValueOnce({});mocks.room.importRequest=request;
- await act(async()=>{renderer=create(createElement(ImportMatchPanel,{mapIndex:0}));});
- const find=(text:string)=>renderer.root.findAllByType('button').find(b=>b.children.includes(text))!;
- act(()=>find('Buscar customizada').props.onClick());
- act(()=>renderer.root.findAllByType('input').find(n=>n.props.placeholder)?.props.onChange({target:{value:'Sova#TEST'}}));
- await act(async()=>{await renderer.root.findByType('form').props.onSubmit({preventDefault(){}});});
- await act(async()=>{await Promise.resolve();});
- act(()=>renderer.root.findAllByType('button').find(n=>n.findAllByType('strong').some(s=>String(s.children).includes('Lotus')))?.props.onClick());
- expect(find('Revisar importação').props.disabled).toBe(true);
- act(()=>renderer.root.findByType(PlayerMatcher).props.onChange(sampleLinks()));
- act(()=>find('Revisar importação').props.onClick());
- const review=renderer.root.findAllByType('input').find(n=>n.props.type==='checkbox')!;
- expect(request).toHaveBeenCalledTimes(1);
- expect(find('Confirmar importação').props.disabled).toBe(true);
- expect(review.props.disabled).toBe(false);act(()=>review.props.onChange({target:{checked:true}}));
- expect(find('Confirmar importação').props.disabled).toBe(false);
- await act(async()=>{await find('Confirmar importação').props.onClick();});
- expect(request.mock.calls[1]![0]).toMatchObject({action:'confirm',mapIndex:0,redTeam:'A',links:sampleLinks(),expectedVersion:mocks.room.state.version});
-});
-it('renders no import controls for spectators',()=>{
- mocks.room.isAdmin=false;act(()=>{renderer=create(createElement(ImportMatchPanel,{mapIndex:0}));});expect(renderer.toJSON()).toBeNull();
-});
-it('suggests the reversed API team orientation from saved player identities',async()=>{
- const match=sampleMatch();
- for (const p of match.players) p.team=p.team==='Red'?'Blue':'Red';
- mocks.room.state.players=mocks.room.state.players.map((p:any,i:number)=>({...p,riot:{puuid:`puuid-${i}`,name:`Old ${i}`,tag:'OLD'}}));
- mocks.room.importRequest=vi.fn().mockResolvedValue({match});
- await act(async()=>{renderer=create(createElement(ImportMatchPanel,{mapIndex:0}));});
- act(()=>renderer.root.findAllByType('button').find(n=>n.children.includes('Buscar customizada'))!.props.onClick());
- act(()=>renderer.root.findAllByType('input').find(n=>n.props.placeholder)!.props.onChange({target:{value:match.id}}));
- await act(async()=>{renderer.root.findByType('form').props.onSubmit({preventDefault(){}});await Promise.resolve();});
- expect(renderer.root.findByType(PlayerMatcher).props.redTeam).toBe('B');
- expect(renderer.root.findByType(PlayerMatcher).props.links).toHaveLength(10);
+beforeEach(() => {
+  mocks.room = {
+    state: readyScrim().state,
+    isAdmin: true,
+    importRequest: vi.fn(),
+  };
 });
 
-it('associates by direct selection and supports dragging a manual name onto a match player',()=>{
- const state=readyScrim().state,match=sampleMatch();let last:PlayerLink[]=[];
- function Harness(){const [links,setLinks]=useState<PlayerLink[]>([]);last=links;return createElement(PlayerMatcher,{state,match,redTeam:'A',links,onChange:setLinks});}
- act(()=>{renderer=create(createElement(Harness));});
- act(()=>renderer.root.findByProps({'aria-label':'Jogador do VALORANT para Apelido 0'}).props.onChange({target:{value:'puuid-0'}}));
- expect(last).toEqual([{playerId:'p0',puuid:'puuid-0'}]);
- act(()=>button('Selecionar Riot 1#TEST').props.onDrop({preventDefault(){},dataTransfer:{getData:(type:string)=>type==='application/x-scrim-player'?'p1':''}}));
- expect(last).toContainEqual({playerId:'p1',puuid:'puuid-1'});
+function text(node: ReactTestInstance): string {
+  return node.children
+    .map((child) => (typeof child === "string" ? child : text(child)))
+    .join("");
+}
+function button(label: string) {
+  const found = renderer!.root
+    .findAllByType("button")
+    .find((node) => node.props["aria-label"] === label || text(node) === label);
+  if (!found) throw new Error(`Button not found: ${label}`);
+  return found;
+}
+function target(name: string) {
+  return renderer!.root
+    .findAll(
+      (node) =>
+        node.type === "div" &&
+        node.props.className?.split(" ").includes("mapping-target"),
+    )
+    .find((node) =>
+      node.findAllByType("strong").some((strong) => text(strong) === name),
+    )!;
+}
+function drag(source: ReactTestInstance, destination: ReactTestInstance) {
+  const values = new Map<string, string>();
+  const dataTransfer = {
+    setData: (type: string, value: string) => values.set(type, value),
+    getData: (type: string) => values.get(type) ?? "",
+    effectAllowed: "",
+  };
+  source.props.onDragStart({ dataTransfer });
+  destination.props.onDrop({
+    preventDefault() {},
+    stopPropagation() {},
+    dataTransfer,
+  });
+}
+function matcher(initial: PlayerLink[] = []) {
+  let links = initial;
+  function Harness() {
+    const [current, setCurrent] = useState(initial);
+    links = current;
+    return createElement(PlayerMatcher, {
+      state: mocks.room.state,
+      match: sampleMatch(),
+      redTeam: "A",
+      links: current,
+      onChange: setCurrent,
+    });
+  }
+  act(() => {
+    renderer = create(createElement(Harness));
+  });
+  return () => links;
+}
+function review() {
+  return renderer!.root.findByProps({ type: "checkbox" });
+}
+function importButton() {
+  return button("Importar Lotus — 13:2");
+}
+async function searchMatch(match = sampleMatch(), direct = false) {
+  const request = vi
+    .fn()
+    .mockResolvedValueOnce(direct ? { match } : { matches: [match] })
+    .mockResolvedValue({});
+  mocks.room.importRequest = request;
+  await act(async () => {
+    renderer = create(createElement(ImportMatchPanel, { mapIndex: 0 }));
+  });
+  act(() => button("Importar partida").props.onClick());
+  act(() =>
+    renderer!.root
+      .findByProps({ placeholder: "Nome#TAG ou link do Tracker" })
+      .props.onChange({
+        target: { value: direct ? match.id : "Sova#TEST" },
+      }),
+  );
+  await act(async () => {
+    renderer!.root.findByType("form").props.onSubmit({ preventDefault() {} });
+  });
+  if (!direct) {
+    act(() =>
+      renderer!.root
+        .findAllByType("button")
+        .find((node) =>
+          node
+            .findAllByType("strong")
+            .some((strong) => text(strong) === "Lotus"),
+        )!
+        .props.onClick(),
+    );
+  }
+  return request;
+}
+
+it("chooses an identity beside an alias, keeps links unique, and allows removal", () => {
+  const links = matcher();
+  act(() => button("Escolher jogador para Apelido 0").props.onClick());
+  act(() => button("Selecionar Riot 0#TEST").props.onClick());
+  expect(links()).toEqual([{ playerId: "p0", puuid: "puuid-0" }]);
+  expect(button("Trocar jogador para Apelido 0").props["aria-expanded"]).toBe(
+    false,
+  );
+
+  act(() => button("Escolher jogador para Apelido 1").props.onClick());
+  act(() => button("Selecionar Riot 0#TEST").props.onClick());
+  expect(links()).toEqual([{ playerId: "p1", puuid: "puuid-0" }]);
+  expect(button("Escolher jogador para Apelido 0")).toBeDefined();
+
+  act(() => button("Trocar jogador para Apelido 1").props.onClick());
+  act(() => button("Remover associação de Apelido 1").props.onClick());
+  expect(links()).toEqual([]);
+});
+
+it("drags an API identity to an alias and rejects a drop onto the other team", () => {
+  const links = matcher();
+  act(() => button("Escolher jogador para Apelido 0").props.onClick());
+  act(() => drag(button("Selecionar Riot 0#TEST"), target("Apelido 1")));
+  expect(links()).toEqual([{ playerId: "p1", puuid: "puuid-0" }]);
+
+  act(() => button("Escolher jogador para Apelido 0").props.onClick());
+  act(() => drag(button("Selecionar Riot 0#TEST"), target("Apelido 5")));
+  expect(links()).toEqual([{ playerId: "p1", puuid: "puuid-0" }]);
+  expect(text(renderer!.root.findByProps({ role: "status" }))).toContain(
+    "outro time",
+  );
+});
+
+it("drags a manual alias onto an API identity", () => {
+  const links = matcher();
+  act(() => button("Escolher jogador para Apelido 0").props.onClick());
+  act(() =>
+    drag(
+      target("Apelido 1").findByProps({ className: "manual-name" }),
+      button("Selecionar Riot 1#TEST"),
+    ),
+  );
+  expect(links()).toEqual([{ playerId: "p1", puuid: "puuid-1" }]);
+});
+
+it("requires ten valid links and explicit review in the same workspace before importing", async () => {
+  const request = await searchMatch();
+  expect(review().props.disabled).toBe(true);
+  expect(importButton().props.disabled).toBe(true);
+  await act(async () => {
+    await importButton().props.onClick();
+  });
+  expect(request).toHaveBeenCalledTimes(1);
+
+  act(() =>
+    renderer!.root
+      .findByType(PlayerMatcher)
+      .props.onChange(sampleLinks().slice(0, 9)),
+  );
+  expect(review().props.disabled).toBe(true);
+  act(() =>
+    renderer!.root.findByType(PlayerMatcher).props.onChange(sampleLinks()),
+  );
+  expect(review().props.disabled).toBe(false);
+  expect(importButton().props.disabled).toBe(true);
+  await act(async () => {
+    await importButton().props.onClick();
+  });
+  expect(request).toHaveBeenCalledTimes(1);
+
+  act(() => review().props.onChange({ target: { checked: true } }));
+  expect(importButton().props.disabled).toBe(false);
+  await act(async () => {
+    await importButton().props.onClick();
+  });
+  expect(request).toHaveBeenLastCalledWith({
+    action: "confirm",
+    region: "br",
+    matchId: sampleMatch().id,
+    mapIndex: 0,
+    redTeam: "A",
+    links: sampleLinks(),
+    expectedVersion: mocks.room.state.version,
+  });
+  expect(text(renderer!.root)).toContain(
+    "Partida importada. Os vínculos estão salvos para a próxima.",
+  );
+});
+
+it("invalidates explicit review when an association changes or suggestions are restored", async () => {
+  const request = await searchMatch();
+  act(() =>
+    renderer!.root.findByType(PlayerMatcher).props.onChange(sampleLinks()),
+  );
+  act(() => review().props.onChange({ target: { checked: true } }));
+  act(() => button("Trocar jogador para Apelido 0").props.onClick());
+  act(() => button("Selecionar Riot 1#TEST").props.onClick());
+  expect(review().props.checked).toBe(false);
+  expect(importButton().props.disabled).toBe(true);
+
+  act(() =>
+    renderer!.root.findByType(PlayerMatcher).props.onChange(sampleLinks()),
+  );
+  act(() => review().props.onChange({ target: { checked: true } }));
+  act(() => button("Restaurar sugestões").props.onClick());
+  expect(review().props.checked).toBe(false);
+  expect(importButton().props.disabled).toBe(true);
+  expect(request).toHaveBeenCalledTimes(1);
+});
+
+it("suggests reversed team orientation from saved identities without silently confirming", async () => {
+  const match = sampleMatch();
+  for (const player of match.players)
+    player.team = player.team === "Red" ? "Blue" : "Red";
+  mocks.room.state.players = mocks.room.state.players.map(
+    (player: any, i: number) => ({
+      ...player,
+      riot: { puuid: `puuid-${i}`, name: `Old ${i}`, tag: "OLD" },
+    }),
+  );
+  await searchMatch(match, true);
+  expect(renderer!.root.findByType(PlayerMatcher).props.redTeam).toBe("B");
+  expect(renderer!.root.findByType(PlayerMatcher).props.links).toHaveLength(10);
+  expect(review().props.checked).toBe(false);
+  expect(importButton().props.disabled).toBe(true);
+  act(() => review().props.onChange({ target: { checked: true } }));
+  act(() =>
+    renderer!.root
+      .findByProps({ "aria-label": "Time da scrim correspondente ao Red" })
+      .props.onChange({ target: { value: "A" } }),
+  );
+  expect(review().props.checked).toBe(false);
+  expect(importButton().props.disabled).toBe(true);
+});
+
+it("blocks confirmation of a result from a different map", async () => {
+  const match = { ...sampleMatch(), mapId: "bind" as const };
+  const request = await searchMatch(match, true);
+  act(() =>
+    renderer!.root.findByType(PlayerMatcher).props.onChange(sampleLinks()),
+  );
+  expect(review().props.disabled).toBe(true);
+  expect(button("Importar Bind — 13:2").props.disabled).toBe(true);
+  expect(text(renderer!.root.findByProps({ role: "alert" }))).toContain(
+    "resultado é de Bind",
+  );
+  act(() => review().props.onChange({ target: { checked: true } }));
+  await act(async () => {
+    await button("Importar Bind — 13:2").props.onClick();
+  });
+  expect(request).toHaveBeenCalledTimes(1);
+});
+
+it("requires another explicit review if the room version changes before import", async () => {
+  const request = await searchMatch();
+  act(() =>
+    renderer!.root.findByType(PlayerMatcher).props.onChange(sampleLinks()),
+  );
+  act(() => review().props.onChange({ target: { checked: true } }));
+  const nextVersion = mocks.room.state.version + 1;
+  mocks.room.state = { ...mocks.room.state, version: nextVersion };
+  act(() => renderer!.update(createElement(ImportMatchPanel, { mapIndex: 0 })));
+  expect(review().props.disabled).toBe(true);
+  expect(importButton().props.disabled).toBe(true);
+  await act(async () => {
+    await importButton().props.onClick();
+  });
+  expect(request).toHaveBeenCalledTimes(1);
+
+  act(() => button("Revisar versão atual").props.onClick());
+  expect(review().props.checked).toBe(false);
+  expect(review().props.disabled).toBe(false);
+  expect(importButton().props.disabled).toBe(true);
+  act(() => review().props.onChange({ target: { checked: true } }));
+  await act(async () => {
+    await importButton().props.onClick();
+  });
+  expect(request).toHaveBeenLastCalledWith(
+    expect.objectContaining({ expectedVersion: nextVersion }),
+  );
+});
+
+it("renders no import controls for spectators", () => {
+  mocks.room.isAdmin = false;
+  act(() => {
+    renderer = create(createElement(ImportMatchPanel, { mapIndex: 0 }));
+  });
+  expect(renderer!.toJSON()).toBeNull();
 });
