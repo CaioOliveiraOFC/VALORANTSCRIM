@@ -11,6 +11,11 @@ export function TeamsPanel() {
   const editable = isAdmin && state.phase === 'setup';
   const [name, setName] = useState('');
   const bench = state.players.filter((p) => !p.team);
+  const captains = {
+    A: state.players.find(player => player.id === state.teams.A.captainId && player.team === 'A')?.id ?? null,
+    B: state.players.find(player => player.id === state.teams.B.captainId && player.team === 'B')?.id ?? null,
+  };
+  const hasCaptains = !!(captains.A || captains.B);
 
   async function addPlayer(e: FormEvent) {
     e.preventDefault();
@@ -18,15 +23,19 @@ export function TeamsPanel() {
   }
 
   function randomize() {
-    const ids = shuffle(state.players.map((p) => p.id));
-    const half = Math.ceil(ids.length / 2);
-    void act({ type: 'teams.set', A: ids.slice(0, half), B: ids.slice(half) });
+    const A = captains.A ? [captains.A] : [];
+    const B = captains.B ? [captains.B] : [];
+    const remaining = shuffle(state.players.filter(player => !A.includes(player.id) && !B.includes(player.id)).map(player => player.id));
+    const remainingForA = Math.ceil(state.players.length / 2) - A.length;
+    A.push(...remaining.slice(0, remainingForA));
+    B.push(...remaining.slice(remainingForA));
+    void act({ type: 'teams.set', A, B, ...(hasCaptains ? { preserveCaptains: true } : {}) });
   }
 
   return (
     <div className="stack">
       {editable && (
-        <section className="card">
+        <section data-room-focus="settings" className="card">
           <h2>Configuração</h2>
           <div className="row wrap">
             <label className="grow">
@@ -51,6 +60,7 @@ export function TeamsPanel() {
         </section>
       )}
 
+      {!editable && <section data-room-focus="settings" className="card"><h2>Configuração da sala</h2><p>{state.title} · {FORMAT_LABEL[state.format]}</p><p className="muted small">{state.pool.map(id => MAPS[id].name).join(', ')}</p></section>}
       <div className="teams">
         {TEAM_IDS.map((team) => (
           <TeamColumn key={team} team={team} editable={editable} />
@@ -58,7 +68,7 @@ export function TeamsPanel() {
       </div>
 
       {(editable || bench.length > 0) && (
-        <section className="card">
+        <section data-room-focus="players" className="card">
           <h2>
             Jogadores sem time <span className="muted">({state.players.length}/{MAX_PLAYERS})</span>
           </h2>
@@ -71,6 +81,7 @@ export function TeamsPanel() {
               </button>
             </form>
           )}
+          {editable && hasCaptains && <p className="muted small">Os capitães continuam nos seus times ao sortear as equipes.</p>}
           <ul className="chips">
             {bench.map((p) => (
               <li key={p.id} className="chip">
@@ -101,7 +112,7 @@ function TeamColumn({ team, editable }: { team: TeamId; editable: boolean }) {
   const roster = state.players.filter((p) => p.team === team);
 
   return (
-    <section className={`card team team-${team}`}>
+    <section data-room-focus={`team-${team}`} className={`card team team-${team}`}>
       {editable ? (
         <input
           className="team-name"

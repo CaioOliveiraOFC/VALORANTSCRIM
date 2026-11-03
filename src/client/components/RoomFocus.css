@@ -1,0 +1,12 @@
+.room-focus-highlight {
+  outline: 3px solid var(--team-a) !important;
+  outline-offset: 5px;
+  box-shadow: 0 0 0 8px rgb(79 209 197 / 0.08);
+  border-radius: var(--radius);
+  scroll-margin-block: 32px;
+}
+#room-content { min-width: 0; }
+#room-content:focus:not(.room-focus-highlight) { outline: none; }
+@media (prefers-reduced-motion: reduce) {
+  .room-focus-highlight { scroll-behavior: auto; }
+}

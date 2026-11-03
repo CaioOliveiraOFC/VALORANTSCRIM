@@ -108,7 +108,7 @@ export function ImportMatchPanel({ mapIndex }: { mapIndex: number }) {
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }
-  return <section className="card import-panel">
+  return <section data-room-focus="import" className="card import-panel">
     <div className="row wrap"><h2 className="grow">Importar partida</h2>
       <button type="button" disabled={!eligible || busy} onClick={() => setOpen(!open)} aria-expanded={open}>{open ? 'Fechar importação' : 'Buscar customizada'}</button>
     </div>

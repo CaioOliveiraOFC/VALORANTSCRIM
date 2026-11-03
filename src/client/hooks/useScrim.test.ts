@@ -79,3 +79,38 @@ it('broadcasts imported map data and saved identities to two clients', async () 
  expect(b.get().state?.players[0]?.riot?.puuid).toBe('puuid-0');
  expect(b.get().state?.maps[0]?.stats.p0?.detail?.agent).toBe('Fade');
 });
+
+it('synchronizes focus and draw timing across clients and recovers an in-progress draw after reconnect', async () => {
+ const start=Date.now();
+ const a=await mount(),b=await mount();
+ await act(async()=>{Socket.instances[0]!.open();Socket.instances[1]!.open();});await flush();
+ const focus:ScrimEvent={type:'room.focus',seq:2,at:start,focus:{id:'focus-shared',target:{tab:'veto',area:'maps'},requestedAt:start,expiresAt:start+10000}};
+ snapshot={state:applyEvent(snapshot.state,focus),events:[...snapshot.events,focus]};
+ act(()=>{for(const socket of Socket.instances)socket.message('postgres_changes',{data:{record:{event:focus}}});});
+ expect(a.get().state?.roomFocus).toEqual(b.get().state?.roomFocus);
+ expect(b.get().state?.roomFocus?.target).toEqual({tab:'veto',area:'maps'});
+ const draw:ScrimEvent={type:'draw.start',seq:3,at:start,draw:{id:'draw-shared',kind:'coin',purpose:'Quem começa banindo?',startedAt:start,revealAt:start+4000,expiresAt:start+120000,status:'pending',result:'tails'}};
+ snapshot={state:applyEvent(snapshot.state,draw),events:[...snapshot.events,draw]};
+ act(()=>{for(const socket of Socket.instances)socket.message('postgres_changes',{data:{record:{event:draw}}});});
+ expect(a.get().state?.draws?.[0]).toEqual(b.get().state?.draws?.[0]);
+ act(()=>Socket.instances[1]!.close());
+ await act(async()=>{vi.advanceTimersByTime(2000);});
+ await act(async()=>{Socket.instances[2]!.open();});await flush();
+ expect(b.get().state?.draws?.[0]?.revealAt).toBe(start+4000);
+ expect(b.get().events).toHaveLength(3);
+});
+
+it('ignores public broadcast payloads pretending to be authoritative room tools', async () => {
+ const client=await mount();await act(async()=>Socket.instances[0]!.open());await flush();
+ act(()=>Socket.instances[0]!.message('broadcast',{event:'room.focus',payload:{id:'forged',target:{tab:'timeline',area:'overview'}}}));
+ expect(client.get().state?.roomFocus).toBeUndefined();expect(client.get().state?.version).toBe(1);
+});
+
+it('aligns its clock with the server and refuses room-tool writes without an admin key', async () => {
+ const serverNow=Date.now()+45000;
+ Object.assign(snapshot,{serverNow});
+ const client=await mount();
+ expect(client.get().serverOffset).toBe(45000);
+ await expect(client.get().roomRequest({action:'draw.start',kind:'coin',purpose:'Teste',requestId:'request-one'})).rejects.toThrow('Somente o admin');
+ expect(vi.mocked(fetch).mock.calls.some(([path])=>String(path).endsWith('/tools'))).toBe(false);
+});

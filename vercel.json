@@ -2,6 +2,10 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
+      "source": "/api/scrims/:id/tools",
+      "destination": "/api/index?route=scrims/:id/tools"
+    },
+    {
       "source": "/api/scrims/:id/imports",
       "destination": "/api/index?route=scrims/:id/imports"
     },

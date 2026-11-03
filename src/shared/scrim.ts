@@ -11,6 +11,7 @@
  * servidor valida cada comando aplicando-o antes de gravar.
  */
 
+import { activeDraw, applyRoomToolsEvent, type RoomDraw, type RoomFocus, type RoomToolsEvent } from './roomTools.js';
 import { applyMatchImport, type RiotIdentity, type ImportSource, type MatchImport } from './imports.js';
 import { ACTIVE_COMPETITIVE_POOL, MAPS, POOL_SIZE, isMapId, type MapId } from './maps.js';
 import { MAPS_IN_SERIES, VETO_SEQUENCES, mapsToWinSeries, type SeriesFormat, type VetoRole, type VetoStepDef } from './veto.js';
@@ -91,6 +92,9 @@ export interface ScrimState {
   veto: VetoEntry[];
   maps: SeriesMap[];
   notes: { text: string; at: number }[];
+  /** Optional for snapshots recorded before the room tools existed. */
+  roomFocus?: RoomFocus;
+  draws?: RoomDraw[];
   /** Número de eventos aplicados (próximo seq = version + 1). */
   version: number;
 }
@@ -105,7 +109,7 @@ export type Command =
   | { type: 'player.rename'; playerId: string; name: string }
   | { type: 'player.remove'; playerId: string }
   | { type: 'player.assign'; playerId: string; team: TeamId | null }
-  | { type: 'teams.set'; A: string[]; B: string[] }
+  | { type: 'teams.set'; A: string[]; B: string[]; preserveCaptains?: boolean }
   | { type: 'veto.start'; first: TeamId }
   | { type: 'veto.ban'; mapId: MapId }
   | { type: 'veto.pick'; mapId: MapId }
@@ -118,6 +122,7 @@ export type Command =
   | { type: 'note.add'; text: string };
 
 export type ScrimEvent =
+  | ({ seq: number; at: number } & RoomToolsEvent)
   | ({ seq: number; at: number; type: 'match.import' } & MatchImport)
   | ({ seq: number; at: number } & Command)
   | { seq: number; at: number; type: 'scrim.create'; id: string; title: string; format: SeriesFormat };
@@ -299,6 +304,10 @@ export function replay(events: readonly ScrimEvent[]): ScrimState {
 }
 
 function reduce(s: ScrimState, e: ScrimEvent, legacy = false): ScrimState {
+  if (e.type === 'room.focus' || e.type === 'draw.start' || e.type === 'draw.accept' || e.type === 'draw.reject') {
+    return applyRoomToolsEvent(s, e);
+  }
+  assert(!activeDraw(s, e.at), 'Conclua ou descarte o sorteio antes de editar a sala.');
   switch (e.type) {
     case 'match.import':
       return applyMatchImport(s, e, e.at);
@@ -373,15 +382,26 @@ function reduce(s: ScrimState, e: ScrimEvent, legacy = false): ScrimState {
     case 'teams.set': {
       requirePhase(s, 'setup');
       assert(Array.isArray(e.A) && Array.isArray(e.B), 'Times inválidos.');
+      assert(e.preserveCaptains === undefined || typeof e.preserveCaptains === 'boolean', 'Opção de capitães inválida.');
       assert(legacy || (e.A.length <= 5 && e.B.length <= 5), 'Cada time aceita no máximo cinco jogadores.');
       const ids = [...e.A, ...e.B];
       assert(new Set(ids).size === ids.length, 'Um jogador não pode estar nos dois times.');
       ids.forEach((id) => findPlayer(s, id));
       const teamOf = (id: string): TeamId | null => (e.A.includes(id) ? 'A' : e.B.includes(id) ? 'B' : null);
+      const captainFor = (team: TeamId): string | null => {
+        const captainId = s.teams[team].captainId;
+        // Historical teams.set events always clear captains. Only new commands
+        // explicitly request keeping them, so replay never changes old outcomes.
+        if (e.preserveCaptains !== true || captainId === null) return null;
+        assert(findPlayer(s, captainId).team === team, 'O capitão precisa estar no time.');
+        assert(teamOf(captainId) === team, 'O sorteio de times deve manter cada capitão no seu time.');
+        return captainId;
+      };
+      const captainA = captainFor('A'), captainB = captainFor('B');
       return {
         ...s,
         players: s.players.map((p) => ({ ...p, team: teamOf(p.id) })),
-        teams: { A: { ...s.teams.A, captainId: null }, B: { ...s.teams.B, captainId: null } },
+        teams: { A: { ...s.teams.A, captainId: captainA }, B: { ...s.teams.B, captainId: captainB } },
       };
     }
 

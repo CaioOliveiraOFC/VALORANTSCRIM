@@ -56,3 +56,9 @@ O endpoint `/api/health` consulta o banco; variáveis presentes sem SQL/permiss�
 ## Importação automática de customizadas
 
 A aba Partida permite importar resultados da HenrikDev e associar jogadores por drag and drop ou seleção. A funcionalidade exige uma nova migração SQL e o segredo de servidor `HENRIK_API_KEY` na Vercel. Consulte [MATCH-IMPORT.md](docs/MATCH-IMPORT.md) antes de ativar o deploy. O fluxo manual continua disponível.
+
+## Foco do admin e sorteios compartilhados
+
+A barra da sala permite chamar os espectadores para a aba/mapa/seção atual e abrir sorteios de capitães da lista geral ou cara ou coroa com motivo. Todos recebem a mesma apresentação; o admin aceita ou descarta o resultado. Aceitar capitães inicia os dois times com eles, e o sorteio posterior dos times mantém os capitães. Tentativas e decisões ficam no histórico e no relatório.
+
+Esta feature usa as RPCs existentes, sem SQL ou variáveis adicionais. Consulte [ROOM-TOOLS.md](docs/ROOM-TOOLS.md) para regras, testes e roteiro de avaliação no Preview.

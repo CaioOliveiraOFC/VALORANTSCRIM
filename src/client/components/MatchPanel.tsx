@@ -16,14 +16,14 @@ import { useRoom } from './ScrimRoom';
 
 const SIDE_LABEL = { atk: 'Ataque', def: 'Defesa' } as const;
 
-export function MatchPanel() {
+export function MatchPanel({ selectedMap, onSelectMap }: { selectedMap: number | null; onSelectMap: (index: number | null) => void }) {
   const { state } = useRoom();
   const live = currentMapIndex(state);
-  const [selected, setSelected] = useState<number | null>(null);
 
   if (state.maps.length === 0) return <p className="card muted">A partida começa quando o veto terminar.</p>;
 
-  const index = selected ?? (live >= 0 ? live : state.maps.length - 1);
+  const fallback = live >= 0 ? live : Math.max(0, state.maps.findLastIndex(map => map.rounds.length > 0));
+  const index = selectedMap !== null && selectedMap < state.maps.length ? selectedMap : fallback;
   const map = state.maps[index]!;
   const series = seriesScore(state);
   const champion = seriesWinner(state);
@@ -44,7 +44,7 @@ export function MatchPanel() {
           const s = mapScore(m);
           const played = m.rounds.length > 0;
           return (
-            <button key={i} className={i === index ? 'on' : ''} onClick={() => setSelected(i === live ? null : i)}>
+            <button key={i} className={i === index ? 'on' : ''} onClick={() => onSelectMap(i === live ? null : i)}>
               <span>
                 Mapa {i + 1} · {MAPS[m.mapId].name}
               </span>
@@ -77,7 +77,7 @@ function Scoreboard({ map, index, isLive }: { map: SeriesMap; index: number; isL
   }
 
   return (
-    <section className="card scoreboard" style={{ backgroundImage: `url(${mapImageUrl(map.mapId)})` }}>
+    <section data-room-focus="scoreboard" className="card scoreboard" style={{ backgroundImage: `url(${mapImageUrl(map.mapId)})` }}>
       <div className="scoreboard-inner">
         <p className="muted small">
           Mapa {index + 1} · {MAPS[map.mapId].name} · pick {map.pickedBy ? state.teams[map.pickedBy].name : 'decider'}
@@ -134,7 +134,7 @@ function RoundStrip({ map }: { map: SeriesMap }) {
   const { state } = useRoom();
   if (!map.rounds.length) return null;
   return (
-    <section className="card">
+    <section data-room-focus="rounds" className="card">
       <h2>Rounds</h2>
       <ol className="round-strip">
         {map.rounds.map((r) => (
@@ -176,7 +176,7 @@ export function StatsTable({ map, index }: { map: SeriesMap; index: number }) {
   };
 
   return (
-    <section className="card">
+    <section data-room-focus="stats" className="card">
       <h2>Estatísticas do mapa</h2>
       {isAdmin && <p className="muted small">{map.source ? 'Dados importados da HenrikDev. Correções manuais de K/D/A ficam registradas no histórico.' : 'Importe uma customizada acima ou preencha o placar final (TAB) manualmente.'}</p>}
       {map.source && <p className="muted small">Fonte: HenrikDev · <a href={`https://tracker.gg/valorant/match/${map.source.matchId}`} target="_blank" rel="noreferrer">Ver partida</a> · {new Date(map.source.startedAt).toLocaleString('pt-BR')} · {Math.round(map.source.durationMs / 60000)} min</p>}

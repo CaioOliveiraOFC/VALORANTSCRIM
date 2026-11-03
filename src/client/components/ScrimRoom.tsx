@@ -1,10 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import type { Command, ScrimState } from '../../shared/scrim';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { currentMapIndex, type Command, type ScrimState } from '../../shared/scrim';
+import { activeDraw, type FocusTarget } from '../../shared/roomTools';
 import { FORMAT_LABEL } from '../../shared/veto';
 import { forgetAdminKey, readAdminKey } from '../adminKeys';
 import { useScrim } from '../hooks/useScrim';
 import { navigate } from '../router';
 import { copyText } from '../util';
+import { RoomTools } from './RoomTools';
+import './RoomFocus.css';
 import { MatchPanel } from './MatchPanel';
 import { ReportPanel } from './ReportPanel';
 import { TeamsPanel } from './TeamsPanel';
@@ -42,17 +45,91 @@ const tabForPhase = (phase: ScrimState['phase']): Tab =>
 
 export function ScrimRoom({ scrimId }: { scrimId: string }) {
   const [adminKey] = useState(() => readAdminKey(scrimId));
-  const { state, events, role, status, presence, send, importRequest } = useScrim(scrimId, adminKey);
+  const { state, events, role, status, presence, send, importRequest, roomRequest, serverOffset } = useScrim(scrimId, adminKey);
   const [tab, setTab] = useState<Tab | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const isAdmin = role === 'admin';
-
   // Espectadores seguem a fase automaticamente até escolherem uma aba.
   const phase = state?.phase;
   const [followPhase, setFollowPhase] = useState(true);
   useEffect(() => {
     if (phase && followPhase) setTab(tabForPhase(phase));
   }, [phase, followPhase]);
+
+  const [selectedMap, setSelectedMap] = useState<number | null>(null);
+  const [, setClock] = useState(() => Date.now());
+  const [toolsBlocking, setToolsBlocking] = useState(false);
+  const backgroundRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const lastArea = useRef<{ tab: Tab; area: string } | null>(null);
+  const seenFocus = useRef<string | null>(null);
+  const pendingAction = useRef<Promise<boolean>>(Promise.resolve(true));
+  const [focusTarget, setFocusTarget] = useState<{ id: string; target: FocusTarget } | null>(null);
+  const now = Date.now() + serverOffset;
+  const blocking = toolsBlocking || !!(state && activeDraw(state, now));
+  const lastDraw = state?.draws?.at(-1);
+
+  useEffect(() => {
+    const deadline = Math.max(state?.roomFocus?.expiresAt ?? 0,
+      lastDraw?.status === 'pending' ? lastDraw.expiresAt : 0);
+    setClock(Date.now());
+    if (deadline <= Date.now() + serverOffset) return;
+    const timer = setInterval(() => {
+      const localNow = Date.now();
+      setClock(localNow);
+      if (localNow + serverOffset >= deadline) clearInterval(timer);
+    }, 200);
+    return () => clearInterval(timer);
+  }, [state?.roomFocus?.id, lastDraw?.id, lastDraw?.status, serverOffset]);
+
+  useEffect(() => {
+    if (backgroundRef.current) backgroundRef.current.inert = blocking;
+  }, [blocking]);
+
+  useEffect(() => {
+    const focus = state?.roomFocus;
+    if (!focus || focus.id === seenFocus.current || blocking) return;
+    seenFocus.current = focus.id;
+    if (focus.expiresAt <= now) return;
+    setTab(focus.target.tab);
+    setFollowPhase(false);
+    if (focus.target.tab === 'match' && focus.target.mapIndex !== undefined) setSelectedMap(focus.target.mapIndex);
+    setFocusTarget({ id: focus.id, target: focus.target });
+  }, [state?.roomFocus?.id, blocking, now]);
+
+  useEffect(() => {
+    if (!focusTarget || !tab || tab !== focusTarget.target.tab) return;
+    let target: HTMLElement | undefined;
+    let removeTimer: ReturnType<typeof setTimeout> | undefined;
+    let priorTabIndex: string | null = null;
+    const frame = requestAnimationFrame(() => {
+      const content = contentRef.current;
+      if (!content) return;
+      target = Array.from(content.querySelectorAll<HTMLElement>('[data-room-focus]'))
+        .find(node => node.dataset.roomFocus === focusTarget.target.area) ?? content;
+      for (let parent: HTMLElement | null = target; parent && parent !== content; parent = parent.parentElement) {
+        if (parent instanceof HTMLDetailsElement) parent.open = true;
+      }
+      priorTabIndex = target.getAttribute('tabindex');
+      target.setAttribute('tabindex', '-1');
+      target.classList.add('room-focus-highlight');
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      target.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
+      target.focus({ preventScroll: true });
+      const label = TABS.find(item => item.id === tab)?.label;
+      setToast(`O admin chamou todos para ${label}.`);
+      removeTimer = setTimeout(() => target?.classList.remove('room-focus-highlight'), 5000);
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      if (removeTimer) clearTimeout(removeTimer);
+      if (target) {
+        target.classList.remove('room-focus-highlight');
+        if (priorTabIndex === null) target.removeAttribute('tabindex'); else target.setAttribute('tabindex', priorTabIndex);
+      }
+    };
+  }, [focusTarget, tab]);
+
 
   useEffect(() => {
     if (!toast) return;
@@ -61,14 +138,18 @@ export function ScrimRoom({ scrimId }: { scrimId: string }) {
   }, [toast]);
 
   const act = useCallback(
-    async (command: Command) => {
-      try {
-        await send(command);
-        return true;
-      } catch (err) {
-        setToast((err as Error).message);
-        return false;
-      }
+    (command: Command) => {
+      const action = (async () => {
+        try {
+          await send(command);
+          return true;
+        } catch (err) {
+          setToast((err as Error).message);
+          return false;
+        }
+      })();
+      pendingAction.current = action;
+      return action;
     },
     [send],
   );
@@ -94,11 +175,28 @@ export function ScrimRoom({ scrimId }: { scrimId: string }) {
     );
   }
 
+  function rememberArea(event: React.SyntheticEvent) {
+    const node = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-room-focus]') : null;
+    if (node && tab) lastArea.current = { tab, area: node.dataset.roomFocus ?? 'overview' };
+  }
+
+  async function focusEveryone() {
+    if (!tab) return;
+    // The input blur may save a field before the toolbar click. Let that commit first.
+    if (!await pendingAction.current) throw new Error('A alteração não foi salva. Revise o aviso antes de chamar a sala.');
+    const liveMap = currentMapIndex(ctx!.state);
+    const mapIndex = selectedMap ?? (liveMap >= 0 ? liveMap : Math.max(0, ctx!.state.maps.findLastIndex(map => map.rounds.length > 0)));
+    const target: FocusTarget = { tab, area: lastArea.current?.tab === tab ? lastArea.current.area : 'overview',
+      ...(tab === 'match' && ctx!.state.maps.length ? { mapIndex } : {}) };
+    await roomRequest({ action: 'focus', target });
+  }
+
   const spectatorLink = `${location.origin}/s/${scrimId}`;
 
   return (
     <Ctx.Provider value={ctx}>
       <main className="page">
+        <div ref={backgroundRef}>
         <header className="room-header">
           <div>
             <a
@@ -165,11 +263,15 @@ export function ScrimRoom({ scrimId }: { scrimId: string }) {
           </p>
         )}
 
-        <nav className="tabs" role="tablist">
+        <RoomTools state={ctx.state} isAdmin={isAdmin} request={roomRequest} now={now} onFocusAll={focusEveryone} onBlockingChange={setToolsBlocking} />
+
+        <nav className="tabs" role="tablist" aria-label="Navegação da scrim">
           {TABS.map((t) => (
             <button
               key={t.id}
               role="tab"
+              id={`tab-${t.id}`}
+              aria-controls="room-content"
               aria-selected={tab === t.id}
               className={tab === t.id ? 'on' : ''}
               onClick={() => {
@@ -182,11 +284,14 @@ export function ScrimRoom({ scrimId }: { scrimId: string }) {
           ))}
         </nav>
 
+        <div ref={contentRef} id="room-content" role="tabpanel" aria-labelledby={`tab-${tab}`} data-room-focus="overview" onFocusCapture={rememberArea} onPointerDownCapture={rememberArea}>
         {tab === 'teams' && <TeamsPanel />}
         {tab === 'veto' && <VetoPanel />}
-        {tab === 'match' && <MatchPanel />}
+        {tab === 'match' && <MatchPanel selectedMap={selectedMap} onSelectMap={setSelectedMap} />}
         {tab === 'report' && <ReportPanel scrimId={scrimId} />}
         {tab === 'timeline' && <Timeline events={events} />}
+        </div>
+        </div>
 
         {toast && (
           <div className="toast" role="status" onClick={() => setToast(null)}>

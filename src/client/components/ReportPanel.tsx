@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { buildMapReport, kd, playerTotals } from '../../shared/report';
+import { buildMapReport, drawResultLabel, drawStatusLabel, kd, playerTotals } from '../../shared/report';
 import { TEAM_IDS, seriesScore, seriesWinner } from '../../shared/scrim';
 import { fmtDateTime } from '../util';
 import { StatsTable } from './MatchPanel';
@@ -117,7 +117,18 @@ export function ReportPanel({ scrimId }: { scrimId: string }) {
         </section>
       )}
 
-      <section className="card">
+      {!!state.draws?.length && <section className="card room-draw-history" aria-labelledby="report-draws-title">
+        <h2 id="report-draws-title">Sorteios</h2>
+        <ol className="notes">
+          {state.draws.map(draw => <li key={draw.id}>
+            <strong>{draw.kind === 'captains' ? 'Capitães' : 'Cara ou coroa'}: {draw.purpose}</strong>
+            <div>{drawResultLabel(draw)}</div>
+            <div className="muted small">{fmtDateTime(draw.startedAt)} — {drawStatusLabel(draw, Date.now())}</div>
+          </li>)}
+        </ol>
+      </section>}
+
+      <section className="card" data-room-focus="notes">
         <h2>Anotações para o report</h2>
         {state.notes.length === 0 && <p className="muted">Nenhuma anotação.</p>}
         <ul className="notes">

@@ -10,7 +10,7 @@ import type { ExternalMatch } from '../../shared/imports';
 import { newId } from '../util';
 
 export type ConnectionStatus = 'connecting' | 'online' | 'offline' | 'not-found';
-interface Snapshot { state: ScrimState; events: ScrimEvent[]; }
+interface Snapshot { state: ScrimState; events: ScrimEvent[]; serverNow?: number; }
 interface EventReply { state: ScrimState; event: ScrimEvent; }
 
 type PhoenixMessage = {
@@ -32,6 +32,7 @@ async function responseJson<T>(response: Response): Promise<T> {
 export function useScrim(scrimId: string, adminKey: string | undefined) {
   const [state, setState] = useState<ScrimState | null>(null);
   const [events, setEvents] = useState<ScrimEvent[]>([]);
+  const [serverOffset, setServerOffset] = useState(0);
   const [role, setRole] = useState<Role>('viewer');
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const [presence, setPresence] = useState({ viewers: 0, admins: 0 });
@@ -70,6 +71,7 @@ export function useScrim(scrimId: string, adminKey: string | undefined) {
     setRole('viewer');
     setPresence({ viewers: 0, admins: 0 });
     setStatus('connecting');
+    setServerOffset(0);
     let disposed = false;
     let socket: WebSocket | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
@@ -92,6 +94,7 @@ export function useScrim(scrimId: string, adminKey: string | undefined) {
 
     async function refresh() {
       try {
+        const sentAt = Date.now();
         const response = await fetch(`/api/scrims/${scrimId}`, { cache: 'no-store' });
         if (response.status === 404) {
           missing = true;
@@ -101,6 +104,9 @@ export function useScrim(scrimId: string, adminKey: string | undefined) {
         }
         const snapshot = await responseJson<Snapshot>(response);
         if (disposed) return;
+        if (typeof snapshot.serverNow === 'number' && Number.isFinite(snapshot.serverNow)) {
+          setServerOffset(snapshot.serverNow - (sentAt + Date.now()) / 2);
+        }
         acceptSnapshot(snapshot);
         if (!realtimeUrl || !anonKey) setStatus('offline');
       } catch {
@@ -250,5 +256,27 @@ export function useScrim(scrimId: string, adminKey: string | undefined) {
     return result;
   }, [scrimId, adminKey, acceptEvent]);
 
-  return { state, events, role, status, presence, send, importRequest };
+  const roomRequest = useCallback(async (input: Record<string, unknown>) => {
+    if (!adminKey) throw new Error('Somente o admin pode usar as ferramentas da sala.');
+    const sentAt = Date.now();
+    try {
+      const response = await fetch(`/api/scrims/${scrimId}/tools`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ...input, adminKey }),
+      });
+      const result = await responseJson<{ state?: ScrimState; event?: ScrimEvent; serverNow?: number }>(response);
+      if (typeof result.serverNow === 'number' && Number.isFinite(result.serverNow)) {
+        setServerOffset(result.serverNow - (sentAt + Date.now()) / 2);
+      }
+      if (result.event && stateRef.current?.id === scrimId) acceptEvent(result.event);
+      else void refreshRef.current();
+      return result;
+    } catch (error) {
+      // A response may be lost after the server committed. Reconcile before retrying.
+      void refreshRef.current();
+      throw error;
+    }
+  }, [scrimId, adminKey, acceptEvent]);
+
+  return { state, events, role, status, presence, send, importRequest, roomRequest, serverOffset };
 }
