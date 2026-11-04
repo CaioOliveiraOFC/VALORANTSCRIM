@@ -1,5 +1,6 @@
 import { MAPS } from '../../shared/maps';
 import type { ScrimEvent } from '../../shared/scrim';
+import { drawResultLabel } from '../../shared/report';
 import { fmtTime } from '../util';
 import { useRoom } from './ScrimRoom';
 
@@ -8,6 +9,8 @@ export function Timeline({ events }: { events: ScrimEvent[] }) {
   const { state } = useRoom();
   const team = (id: 'A' | 'B') => state.teams[id].name;
   const player = (id: string) => state.players.find((p) => p.id === id)?.name ?? 'jogador removido';
+  const draw = (id: string) => state.draws?.find(item => item.id === id);
+  const tabLabel = { teams: 'Times', veto: 'Veto', match: 'Partida', report: 'Relatório', timeline: 'Linha do tempo' };
 
   const describe = (e: ScrimEvent): string => {
     switch (e.type) {
@@ -31,6 +34,16 @@ export function Timeline({ events }: { events: ScrimEvent[] }) {
       case 'round.undo': return 'Round desfeito';
       case 'stats.set': return `Stats de ${player(e.playerId)} no mapa ${e.mapIndex + 1}: ${e.line.kills}/${e.line.deaths}/${e.line.assists}`;
       case 'note.add': return `Anotação: ${e.text}`;
+      case 'room.focus': return `Admin chamou a atenção para ${tabLabel[e.focus.target.tab]}${e.focus.target.mapIndex !== undefined ? `, mapa ${e.focus.target.mapIndex + 1}` : ''}`;
+      case 'draw.start': return `Sorteio de ${e.draw.kind === 'captains' ? 'capitães' : 'cara ou coroa'} iniciado: ${e.draw.purpose}. Resultado: ${drawResultLabel(e.draw)}. Aguardando decisão do admin.`;
+      case 'draw.accept': {
+        const item = draw(e.drawId);
+        return item ? `Admin aceitou o sorteio “${item.purpose}”: ${drawResultLabel(item)}` : 'Admin aceitou um sorteio';
+      }
+      case 'draw.reject': {
+        const item = draw(e.drawId);
+        return item ? `Admin descartou o sorteio “${item.purpose}”: ${drawResultLabel(item)}` : 'Admin descartou um sorteio';
+      }
     }
   };
 

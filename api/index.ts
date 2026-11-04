@@ -1,5 +1,5 @@
 /** API serverless Vercel: somente o serviço usa a chave secreta do Supabase. */
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { fetchMatch, findMatches, ProviderError, regionCode } from '../src/server/henrik.js';
 import type { PlayerLink } from '../src/shared/imports.js';
@@ -8,8 +8,13 @@ import { toMarkdown } from '../src/shared/report.js';
 import { applyEvent, initialState, DomainError, seriesScore, type Command, type ScrimEvent, type ScrimState } from '../src/shared/scrim.js';
 import type { SeriesFormat } from '../src/shared/veto.js';
 import type { ScrimSummary } from '../src/shared/protocol.js';
+import {
+  activeDraw, validateFocusTarget, DRAW_REVEAL_MS, DRAW_TTL_MS, ROOM_FOCUS_TTL_MS,
+  type RoomDraw, type RoomToolsEvent,
+} from '../src/shared/roomTools.js';
 
 const ID_RE = /^[a-z0-9]{6,32}$/;
+const REQUEST_ID_RE = /^[A-Za-z0-9_-]{6,64}$/;
 const MAX_BODY = 16 * 1024;
 const hash = (key: string) => createHash('sha256').update(key).digest('hex');
 
@@ -64,6 +69,26 @@ function authorize(row: DbScrim, key: unknown): boolean {
   const expected = Buffer.from(row.admin_key_hash, 'hex');
   const actual = Buffer.from(hash(key), 'hex');
   return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
+/** Each tool accepts only its intent; winners and clocks are server-owned. */
+function toolFields(body: Record<string, unknown>, fields: string[]) {
+  const allowed = new Set(['adminKey', 'action', ...fields]);
+  if (Object.keys(body).some((field) => !allowed.has(field))) {
+    throw new ApiError(400, 'Campos de sorteio ou foco inválidos. Envie apenas a ação desejada.');
+  }
+}
+
+function requestId(value: unknown): string {
+  if (typeof value !== 'string' || !REQUEST_ID_RE.test(value)) throw new ApiError(400, 'Identificador da tentativa inválido.');
+  return value;
+}
+
+function drawPurpose(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim() || value.trim().length > 160 || /[\u0000-\u001f\u007f]/.test(value)) {
+    throw new ApiError(400, 'Explique o que está sendo sorteado em até 160 caracteres.');
+  }
+  return value.trim();
 }
 
 async function jsonBody(req: IncomingMessage & { body?: unknown }): Promise<Record<string, unknown>> {
@@ -151,7 +176,7 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
         after = event.seq;
       }
     }
-    return send(res, 200, { state: current.state, events });
+    return send(res, 200, { state: current.state, events, serverNow: Date.now() });
   }
   if (path.length === 3 && path[2] === 'report.md' && req.method === 'GET') {
     res.setHeader('content-disposition', `attachment; filename="scrim-${id}.md"`);
@@ -161,11 +186,65 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     const body = await jsonBody(req);
     return send(res, 200, { role: authorize(current, body.adminKey) ? 'admin' : 'viewer' });
   }
+  if (path.length === 3 && path[2] === 'tools' && req.method === 'POST') {
+    const body = await jsonBody(req);
+    if (!authorize(current, body.adminKey)) throw new ApiError(403, 'Somente o admin pode chamar atenção ou controlar sorteios.');
+    const now = Date.now();
+    let toolEvent: RoomToolsEvent;
+    if (body.action === 'focus') {
+      toolFields(body, ['target']);
+      if (activeDraw(current.state, now)) throw new ApiError(409, 'Resolva o sorteio antes de chamar atenção para outra área.');
+      const target = validateFocusTarget(body.target, current.state);
+      toolEvent = { type: 'room.focus', focus: { id: randomUUID(), target, requestedAt: now, expiresAt: now + ROOM_FOCUS_TTL_MS } };
+    } else if (body.action === 'draw.start') {
+      toolFields(body, ['kind', 'purpose', 'requestId']);
+      const id = requestId(body.requestId);
+      if (body.kind !== 'captains' && body.kind !== 'coin') throw new ApiError(400, 'Tipo de sorteio inválido.');
+      const purpose = drawPurpose(body.purpose);
+      // A response can be lost after commit. Retrying the same request never rerolls.
+      const existing = current.state.draws?.find((draw) => draw.id === id);
+      if (existing) {
+        if (existing.kind !== body.kind || existing.purpose !== purpose) throw new ApiError(409, 'Esta tentativa já pertence a outro sorteio.');
+        return send(res, 200, { state: current.state, draw: existing, serverNow: now });
+      }
+      if (activeDraw(current.state, now)) throw new ApiError(409, 'Já existe um sorteio aguardando a decisão do admin.');
+      const base = { id, purpose, status: 'pending' as const, startedAt: now, revealAt: now + DRAW_REVEAL_MS, expiresAt: now + DRAW_TTL_MS };
+      let draw: RoomDraw;
+      if (body.kind === 'captains') {
+        if (current.state.phase !== 'setup') throw new ApiError(400, 'Sorteie os capitães antes de iniciar a escolha dos mapas.');
+        const candidates = current.state.players.map(({ id, name }) => ({ id, name }));
+        if (candidates.length < 2) throw new ApiError(400, 'Adicione pelo menos dois jogadores para sortear os capitães.');
+        const first = randomInt(candidates.length);
+        const secondIndex = randomInt(candidates.length - 1);
+        const second = secondIndex >= first ? secondIndex + 1 : secondIndex;
+        draw = { ...base, kind: 'captains', candidates, result: { A: candidates[first]!.id, B: candidates[second]!.id } };
+      } else {
+        draw = { ...base, kind: 'coin', result: randomInt(2) === 0 ? 'heads' : 'tails' };
+      }
+      toolEvent = { type: 'draw.start', draw };
+    } else if (body.action === 'draw.accept' || body.action === 'draw.reject') {
+      toolFields(body, ['drawId']);
+      const drawId = requestId(body.drawId);
+      const draw = activeDraw(current.state, now);
+      if (!draw || draw.id !== drawId) throw new ApiError(409, 'Este sorteio já foi resolvido, expirou ou não é o sorteio ativo.');
+      if (body.action === 'draw.accept' && now < draw.revealAt) throw new ApiError(409, 'Aguarde o resultado antes de aceitar o sorteio.');
+      toolEvent = { type: body.action, drawId };
+    } else {
+      throw new ApiError(400, 'Ação de foco ou sorteio inválida.');
+    }
+    const event: ScrimEvent = { ...toolEvent, seq: current.version + 1, at: now };
+    const state = applyEvent(current.state, event);
+    await db('rpc/append_scrim_event', { method: 'POST', body: JSON.stringify({
+      p_id: id, p_key_hash: hash(body.adminKey as string), p_expected_version: current.version, p_state: state, p_event: event,
+    }) });
+    return send(res, 200, { state, event, serverNow: Date.now() });
+  }
   if (path.length === 3 && path[2] === 'imports' && req.method === 'POST') {
     const body = await jsonBody(req);
     if (!authorize(current, body.adminKey)) throw new ApiError(403, 'Somente o admin pode importar.');
     const region = regionCode(body.region);
     if (!['search', 'detail', 'confirm'].includes(String(body.action))) throw new ApiError(400, 'Ação de importação inválida.');
+    if (body.action === 'confirm' && activeDraw(current.state, Date.now())) throw new ApiError(409, 'Resolva o sorteio antes de importar a partida.');
     const allowed = await db('rpc/claim_match_lookup', { method: 'POST', body: JSON.stringify({ p_id: id, p_key_hash: hash(body.adminKey as string) }) });
     if (allowed !== true) throw new ApiError(429, 'Muitas consultas. Aguarde um minuto antes de buscar novamente.');
     if (body.action === 'search') return send(res, 200, { matches: await findMatches(region, body.riotId) });
@@ -190,9 +269,12 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     const body = await jsonBody(req);
     if (!authorize(current, body.adminKey)) throw new ApiError(403, 'Somente o admin pode editar.');
     const command = body.command;
-    if (!command || typeof command !== 'object' || Array.isArray(command) || !('type' in command) || (command.type === 'scrim.create' || command.type === 'match.import')) {
+    if (!command || typeof command !== 'object' || Array.isArray(command) || !('type' in command) ||
+        typeof command.type !== 'string' || command.type === 'scrim.create' || command.type === 'match.import' ||
+        command.type === 'room.focus' || command.type.startsWith('draw.')) {
       throw new ApiError(400, 'Comando inválido.');
     }
+    if (activeDraw(current.state, Date.now())) throw new ApiError(409, 'Resolva o sorteio antes de editar a sala.');
     const event = { ...(command as Command), seq: current.version + 1, at: Date.now() } as ScrimEvent;
     const state = applyEvent(current.state, event);
     await db('rpc/append_scrim_event', { method: 'POST', body: JSON.stringify({

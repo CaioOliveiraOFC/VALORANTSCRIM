@@ -18,6 +18,7 @@ import {
   type TeamId,
 } from './scrim.js';
 import { FORMAT_LABEL } from './veto.js';
+import type { RoomDraw } from './roomTools.js';
 
 export interface MapReport {
   index: number;
@@ -96,6 +97,23 @@ const sideLabel = (s: Side) => (s === 'atk' ? 'Ataque' : 'Defesa');
 const fmtDate = (ms: number) =>
   new Date(ms).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' });
 
+/** Names come from the draw snapshot, so later renames do not rewrite its result. */
+export function drawResultLabel(draw: RoomDraw): string {
+  if (draw.kind === 'coin') return draw.result === 'heads' ? 'Cara' : 'Coroa';
+  const name = (id: string) => draw.candidates.find(candidate => candidate.id === id)?.name ?? 'Jogador indisponível';
+  return `Time A: ${name(draw.result.A)}; Time B: ${name(draw.result.B)}`;
+}
+
+/** Expiration releases the room but is never equivalent to accepting a result. */
+export function drawStatusLabel(draw: RoomDraw, now?: number): string {
+  if (draw.status === 'accepted') return 'Aceito pelo admin';
+  if (draw.status === 'rejected') return 'Descartado pelo admin';
+  if (now !== undefined && now >= draw.expiresAt) return 'Expirado sem confirmação';
+  return 'Sem confirmação';
+}
+
+const markdownText = (text: string) => text.replace(/[\r\n]+/g, ' ').replace(/[\\`*_{}\[\]()<>|#!]/g, '\\$&');
+
 export function toMarkdown(state: ScrimState): string {
   const t = (id: TeamId) => state.teams[id].name;
   const score = seriesScore(state);
@@ -170,6 +188,18 @@ export function toMarkdown(state: ScrimState): string {
     lines.push('## Anotações', '');
     state.notes.forEach((n) => lines.push(`- ${fmtDate(n.at)} — ${n.text}`));
     lines.push('');
+  }
+
+  if (state.draws?.length) {
+    lines.push('## Sorteios', '');
+    state.draws.forEach((draw, index) => {
+      lines.push(`### ${index + 1}. ${draw.kind === 'captains' ? 'Capitães' : 'Cara ou coroa'}`, '');
+      lines.push(`- **Motivo:** ${markdownText(draw.purpose)}`);
+      lines.push(`- **Iniciado em:** ${fmtDate(draw.startedAt)}`);
+      lines.push(`- **Resultado:** ${markdownText(drawResultLabel(draw))}`);
+      lines.push(`- **Decisão:** ${drawStatusLabel(draw)}${draw.resolvedAt !== undefined ? ` em ${fmtDate(draw.resolvedAt)}` : `; prazo até ${fmtDate(draw.expiresAt)}`}`);
+      lines.push('');
+    });
   }
 
   return lines.join('\n');

@@ -35,7 +35,7 @@ export function VetoPanel() {
 
   return (
     <div className="stack">
-      <section className="card veto-now" aria-live="polite">
+      <section data-room-focus="turn" className="card veto-now" aria-live="polite">
         {step ? (
           <>
             <span className={`turn team-${step.team}`}>{state.teams[step.team].name}</span>
@@ -70,7 +70,7 @@ export function VetoPanel() {
         </div>
       )}
 
-      <div className="map-grid">
+      <div data-room-focus="maps" className="map-grid">
         {state.pool.map((id) => (
           <MapCard
             key={id}
