@@ -1,12 +1,27 @@
 # Scrims VALORANT
 
-> **Deploy Vercel + Supabase:** consulte [README-VERCEL.md](./README-VERCEL.md). O fluxo abaixo descreve o servidor Docker/Node legado; a migração serverless usa Postgres + Supabase Realtime.
+## Aplicação atual: Vercel + Supabase
+
+A aplicação em uso combina React, Vercel Functions, Supabase Postgres/Realtime e login de organizadores pelo Supabase Auth. Espectadores abrem o link da sala sem conta; administradores entram em `/admin` com e-mail e senha de uma conta liberada pelo responsável pelo site.
+
+- **Deploy e desenvolvimento:** [README-VERCEL.md](README-VERCEL.md).
+- **Criar/liberar os administradores:** [ADMIN-SETUP.md](docs/ADMIN-SETUP.md).
+- **Permitir excluir/restaurar salas a outro admin:** [room-delete-access.sql](docs/room-delete-access.sql).
+- **Tutorial para enviar aos organizadores:** [guia online](public/guia-admin.html) e [PDF](public/guia-admin.pdf), publicados em `/guia-admin.html` e `/guia-admin.pdf`.
+- **Partidas pela API:** [importação de customizadas](docs/MATCH-IMPORT.md).
+- **Foco e sorteios compartilhados:** [ROOM-TOOLS.md](docs/ROOM-TOOLS.md).
+
+O administrador cria a sala, cadastra dez jogadores, monta os times, conduz o veto e importa os resultados. Novas salas começam ocultas; o olho no painel permite mostrá-las aos espectadores. Placar e rounds vêm da importação; a ação **Corrigir estatística** permite ajustar K/D/A depois de importar. O histórico permanece em eventos, inclusive nas salas excluídas da lista e restauradas. Contas comuns sem `app_metadata.scrim_admin: true` e links antigos com `#admin=…` não concedem permissão de edição.
+
+## Servidor Node legado (referência)
+
+As seções abaixo documentam a implementação original em `src/server`, com WebSocket e arquivos JSONL. Ela permanece no repositório para manutenção e importação do histórico; **não implementa o login atual** e não é a rota usada para hospedar a aplicação na Vercel.
 
 Organizador de scrims com **sala em tempo real**: um admin monta os times, conduz o
 veto e marca o placar; até dezenas de espectadores acompanham pelo mesmo link, sem
 compartilhar tela. Tudo é **gravado como log de eventos** para gerar relatório depois.
 
-## Como funciona
+### Como funcionava no servidor legado
 
 ```
  Admin (navegador) ──comando──▶ Servidor ──valida + grava (JSONL)──▶ data/<id>.events.jsonl
@@ -22,7 +37,7 @@ compartilhar tela. Tudo é **gravado como log de eventos** para gerar relatório
   qualquer comando dele.
 - **Reconexão automática**: quem cair do Wi-Fi volta sozinho e recebe o estado completo.
 
-## Regras implementadas
+### Regras de domínio
 
 | Formato | Sequência (Team A = quem começa o veto) |
 |---|---|
@@ -41,20 +56,20 @@ no round 13 e alternam a cada round na prorrogação.
 Edite `ACTIVE_COMPETITIVE_POOL` em `src/shared/maps.ts` a cada rotação, ou troque a pool
 pela tela de configuração.
 
-## Rodar
+### Executar o servidor legado para manutenção
 
 Requer Node 20+.
 
 ```bash
-npm install
-npm run dev        # servidor :8787 + Vite :5173 (abra http://localhost:5173)
-npm test           # regras de veto/placar
-npm run build && npm start   # produção em http://localhost:8787
+npm ci
+npm test
+npm run build
+npm start          # servidor Node legado, sem o login atual
 ```
 
-Variáveis: `PORT` (padrão 8787) e `DATA_DIR` (padrão `./data`).
+Variáveis desse servidor: `PORT` (padrão 8787) e `DATA_DIR` (padrão `./data`). Para a aplicação atual, `npm run dev` usa a CLI Vercel; consulte [README-VERCEL.md](README-VERCEL.md).
 
-## Jogar com os amigos do Discord
+### Hospedagem do servidor legado
 
 O link precisa ser acessível pela internet. Duas opções:
 
@@ -68,10 +83,9 @@ O link precisa ser acessível pela internet. Duas opções:
    WebSocket e **disco persistente** montado em `/data` (Fly.io, Railway, Render com
    disk, uma VPS). Sem disco persistente o histórico some a cada deploy.
 
-Fluxo: crie a scrim → você vira admin → **Copiar link p/ Discord** → cole no canal.
-Use **Copiar link de admin** só para abrir como admin em outro dispositivo; não o compartilhe.
+No cliente original desse servidor, criar uma scrim entregava uma chave/link de admin. Esse fluxo é legado: na aplicação atual, o organizador entra por `/admin` e compartilha apenas o link público da sala.
 
-## Histórico e relatórios
+### Histórico e relatórios do servidor legado
 
 - `GET /api/scrims`: lista de scrims gravadas (tela inicial).
 - `GET /api/scrims/:id`: estado + log completo de eventos (JSON).
@@ -79,11 +93,9 @@ Use **Copiar link de admin** só para abrir como admin em outro dispositivo; nã
   rounds por lado, pistols, maior sequência, notas de round, K/D/A, anotações).
 - `data/<id>.events.jsonl`: o log bruto, uma linha por evento, fácil de abrir no pandas.
 
-K/D/A é preenchido à mão a partir do placar final (TAB). Partidas personalizadas não
-têm API pública de estatísticas: a VAL-MATCH-V1 oficial da Riot só é liberada para
-produtos aprovados com chave de produção.
+No fluxo original, K/D/A era preenchido à mão a partir do placar final (TAB). A aplicação atual oferece importação pela HenrikDev; consulte [MATCH-IMPORT.md](docs/MATCH-IMPORT.md). A VAL-MATCH-V1 oficial da Riot é uma integração diferente, restrita a produtos aprovados com chave de produção.
 
-## Imagens dos mapas
+### Imagens dos mapas
 
 A Riot não publica um CDN de imagens de mapas; a API oficial (VAL-CONTENT-V1) devolve
 só nomes e IDs. As imagens vêm de `media.valorant-api.com`, um espelho público sem chave,
@@ -91,7 +103,7 @@ endereçado pelo **UUID oficial** de cada mapa. Para trocar a origem, altere
 `MAP_IMAGE_BASE` em `src/shared/maps.ts`. Se uma imagem falhar, o card mostra um
 degradê com o nome.
 
-## Estrutura
+### Estrutura original
 
 ```
 src/shared/   domínio puro (mapas, veto, redutor de eventos, relatório) + testes

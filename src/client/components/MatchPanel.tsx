@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { MAPS, mapImageUrl } from '../../shared/maps';
 import {
   TEAM_IDS,
@@ -7,14 +7,11 @@ import {
   mapWinner,
   seriesScore,
   seriesWinner,
-  sideInRound,
   type SeriesMap,
-  type TeamId,
 } from '../../shared/scrim';
 import { ImportMatchPanel } from './ImportMatchPanel';
 import { useRoom } from './ScrimRoom';
-
-const SIDE_LABEL = { atk: 'Ataque', def: 'Defesa' } as const;
+import './MatchPanel.css';
 
 export function MatchPanel({ selectedMap, onSelectMap }: { selectedMap: number | null; onSelectMap: (index: number | null) => void }) {
   const { state } = useRoom();
@@ -49,8 +46,7 @@ export function MatchPanel({ selectedMap, onSelectMap }: { selectedMap: number |
                 Mapa {i + 1} · {MAPS[m.mapId].name}
               </span>
               <small className="muted">
-                {played ? `${s.A} x ${s.B}` : i === live ? 'próximo' : '—'}
-                {i === live && played && ' · ao vivo'}
+                {played ? `${s.A} x ${s.B}` : 'Aguardando importação'}
               </small>
             </button>
           );
@@ -58,23 +54,18 @@ export function MatchPanel({ selectedMap, onSelectMap }: { selectedMap: number |
       </nav>
 
       <ImportMatchPanel key={index} mapIndex={index} />
-      <Scoreboard map={map} index={index} isLive={index === live} />
+      <Scoreboard map={map} index={index} />
       <RoundStrip map={map} />
       <StatsTable map={map} index={index} />
     </div>
   );
 }
 
-function Scoreboard({ map, index, isLive }: { map: SeriesMap; index: number; isLive: boolean }) {
-  const { state, isAdmin, act } = useRoom();
-  const [note, setNote] = useState('');
+function Scoreboard({ map, index }: { map: SeriesMap; index: number }) {
+  const { state, isAdmin } = useRoom();
   const score = mapScore(map);
   const winner = mapWinner(map);
-  const nextRound = map.rounds.length + 1;
-
-  async function win(team: TeamId) {
-    if (await act({ type: 'round.win', team, ...(note.trim() ? { note } : {}) })) setNote('');
-  }
+  const recorded = map.rounds.length > 0 || !!map.source;
 
   return (
     <section data-room-focus="scoreboard" className="card scoreboard" style={{ backgroundImage: `url(${mapImageUrl(map.mapId)})` }}>
@@ -82,49 +73,20 @@ function Scoreboard({ map, index, isLive }: { map: SeriesMap; index: number; isL
         <p className="muted small">
           Mapa {index + 1} · {MAPS[map.mapId].name} · pick {map.pickedBy ? state.teams[map.pickedBy].name : 'decider'}
         </p>
-        <div className="score-row">
+        {!recorded ? <div className="match-awaiting" role="status">
+          <svg className="match-awaiting-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          <h2>{isAdmin ? 'Aguardando importação da partida' : 'Aguardando importação da partida para você'}</h2>
+          <p>{isAdmin ? 'Joguem a customizada. Quando terminar, busque pelo Nome#TAG de um jogador ou pelo link da partida para trazer o resultado.' : 'Quando o administrador importar a partida, o placar, os rounds e as estatísticas aparecerão aqui.'}</p>
+        </div> : <div className="score-row">
           {TEAM_IDS.map((t) => (
             <div key={t} className={`score-team team-${t} ${winner === t ? 'won' : ''}`}>
               <span className="name">{state.teams[t].name}</span>
               <span className="points">{score[t]}</span>
-              {map.startingSide && !winner && (
-                <span className={`side side-${sideInRound(map.startingSide[t], nextRound)}`}>
-                  {SIDE_LABEL[sideInRound(map.startingSide[t], nextRound)]}
-                </span>
-              )}
-              {isAdmin && isLive && (
-                <button className="primary" onClick={() => win(t)}>
-                  + Round
-                </button>
-              )}
             </div>
           ))}
-        </div>
-        {!winner && map.rounds.length > 0 && (
-          <p className="muted small center">
-            Round {nextRound}
-            {nextRound > 24 ? ' · prorrogação' : nextRound === 13 ? ' · pistol do 2º tempo' : ''}
-          </p>
-        )}
+        </div>}
         {winner && <p className="center"><b>{state.teams[winner].name}</b> venceu o mapa</p>}
-        {isAdmin && isLive && (
-          <div className="row">
-            <input
-              className="grow"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Nota opcional do round (ex.: clutch 1v3, eco forçado)"
-              maxLength={280}
-            />
-          </div>
-        )}
-        {isAdmin && (state.phase === 'live' || state.phase === 'finished') && (
-          <div className="row push">
-            <button className="ghost" onClick={() => act({ type: 'round.undo' })}>
-              Desfazer último round
-            </button>
-          </div>
-        )}
+        {recorded && !map.source && <p className="muted small center">Resultado preservado de uma partida registrada anteriormente.</p>}
       </div>
     </section>
   );
@@ -163,22 +125,47 @@ function RoundStrip({ map }: { map: SeriesMap }) {
   );
 }
 
+const STAT_FIELDS = ['kills', 'deaths', 'assists'] as const;
+const STAT_LABEL = { kills: 'Abates (K)', deaths: 'Mortes (D)', assists: 'Assistências (A)' } as const;
+
 export function StatsTable({ map, index }: { map: SeriesMap; index: number }) {
   const { state, isAdmin, act } = useRoom();
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft] = useState({ kills: '', deaths: '', assists: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const locked = useRef(false);
+  useEffect(() => { setEditing(null); setError(''); }, [index, map.source?.matchId, isAdmin]);
   const players = state.players.filter((p) => p.team);
-  if (!players.length || (!isAdmin && Object.keys(map.stats).length === 0)) return null;
+  if (!players.length || Object.keys(map.stats).length === 0) return null;
+  const canCorrect = isAdmin && !!map.source;
+  const selected = canCorrect ? players.find(p => p.id === editing) : undefined;
 
-  const save = (playerId: string, field: 'kills' | 'deaths' | 'assists', raw: string) => {
-    const current = map.stats[playerId] ?? { kills: 0, deaths: 0, assists: 0 };
-    const value = Math.max(0, Math.min(200, Math.trunc(Number(raw) || 0)));
-    if (current[field] === value && map.stats[playerId]) return;
-    void act({ type: 'stats.set', mapIndex: index, playerId, line: { ...current, [field]: value } });
-  };
+  function openCorrection(playerId: string) {
+    const line = map.stats[playerId];
+    if (!canCorrect || !line || locked.current) return;
+    setDraft({ kills: String(line.kills), deaths: String(line.deaths), assists: String(line.assists) });
+    setEditing(playerId); setError('');
+  }
+  async function saveCorrection(event: FormEvent) {
+    event.preventDefault();
+    if (!selected || !canCorrect || locked.current) return;
+    const line = { kills: Number(draft.kills), deaths: Number(draft.deaths), assists: Number(draft.assists) };
+    if (STAT_FIELDS.some(field => !draft[field].trim() || !Number.isInteger(line[field]) || line[field] < 0 || line[field] > 200)) {
+      setError('Preencha K/D/A com números inteiros entre 0 e 200.'); return;
+    }
+    locked.current = true; setSaving(true); setError('');
+    try {
+      if (await act({ type: 'stats.set', mapIndex: index, playerId: selected.id, line })) setEditing(null);
+      else setError('Não foi possível salvar a correção. Tente novamente.');
+    } finally { locked.current = false; setSaving(false); }
+  }
 
   return (
     <section data-room-focus="stats" className="card">
       <h2>Estatísticas do mapa</h2>
-      {isAdmin && <p className="muted small">{map.source ? 'Dados importados da HenrikDev. Correções manuais de K/D/A ficam registradas no histórico.' : 'Importe uma customizada acima ou preencha o placar final (TAB) manualmente.'}</p>}
+      {!map.source && <p className="muted small">Estatísticas preservadas de uma partida registrada anteriormente.</p>}
+      {canCorrect && <p className="muted small">K/D/A vem da importação. Se precisar ajustar um dado, use “Corrigir estatística”. A correção fica registrada no histórico.</p>}
       {map.source && <p className="muted small">Fonte: HenrikDev · <a href={`https://tracker.gg/valorant/match/${map.source.matchId}`} target="_blank" rel="noreferrer">Ver partida</a> · {new Date(map.source.startedAt).toLocaleString('pt-BR')} · {Math.round(map.source.durationMs / 60000)} min</p>}
       <div className="table-scroll">
       <table className="stats">
@@ -189,6 +176,7 @@ export function StatsTable({ map, index }: { map: SeriesMap; index: number }) {
             <th>D</th>
             <th>A</th>
             {map.source && <><th>Agente</th><th>Dano</th><th>ADR</th><th>ACS</th><th>HS%</th></>}
+            {canCorrect && <th><span className="match-stat-action-heading">Correção</span></th>}
           </tr>
         </thead>
         <tbody>
@@ -200,22 +188,9 @@ export function StatsTable({ map, index }: { map: SeriesMap; index: number }) {
                 return (
                   <tr key={p.id} className={`team-${t}`}>
                     <td>{p.name}{p.riot && <small className="riot-id">{p.riot.name}#{p.riot.tag}</small>}{line?.manualCorrection && <small> K/D/A corrigido</small>}</td>
-                    {(['kills', 'deaths', 'assists'] as const).map((f) => (
+                    {STAT_FIELDS.map((f) => (
                       <td key={f}>
-                        {isAdmin ? (
-                          <input
-                            type="number"
-                            min={0}
-                            max={200}
-                            inputMode="numeric"
-                            aria-label={`${f} de ${p.name}`}
-                            key={`${p.id}-${f}-${line?.[f] ?? ''}`}
-                            defaultValue={line?.[f] ?? ''}
-                            onBlur={(e) => e.target.value !== '' && save(p.id, f, e.target.value)}
-                          />
-                        ) : (
-                          (line?.[f] ?? '—')
-                        )}
+                        {line?.[f] ?? '—'}
                       </td>
                     ))}
                     {map.source && <>
@@ -224,12 +199,19 @@ export function StatsTable({ map, index }: { map: SeriesMap; index: number }) {
                       <td>{line?.detail && map.rounds.length ? (line.detail.score / map.rounds.length).toFixed(1) : '—'}</td>
                       <td>{line?.detail ? ((line.detail.headshots + line.detail.bodyshots + line.detail.legshots) ? (100 * line.detail.headshots / (line.detail.headshots + line.detail.bodyshots + line.detail.legshots)).toFixed(1) + '%' : '—') : '—'}</td>
                     </>}
+                    {canCorrect && <td><button type="button" className="ghost match-stat-correct" aria-label={`Corrigir estatística de ${p.name}`} disabled={saving || !line} onClick={() => openCorrection(p.id)}>Corrigir estatística</button></td>}
                   </tr>
                 );
               }),
           )}
         </tbody>
       </table></div>
+      {selected && <form className="match-stat-correction" aria-label={`Correção de estatística de ${selected.name}`} onSubmit={event => void saveCorrection(event)}>
+        <div><h3>Corrigir estatística de {selected.name}</h3><p className="muted small">Apenas K/D/A será alterado. Os outros dados da API serão mantidos.</p></div>
+        <div className="match-stat-fields">{STAT_FIELDS.map(field => <label key={field}>{STAT_LABEL[field]}<input type="number" name={field} min="0" max="200" step="1" inputMode="numeric" required autoFocus={field === 'kills'} disabled={saving} value={draft[field]} onChange={event => setDraft(value => ({ ...value, [field]: event.target.value }))} /></label>)}</div>
+        {error && <p role="alert" className="match-stat-error">{error}</p>}
+        <div className="row wrap"><button type="submit" className="primary" disabled={saving}>{saving ? 'Salvando…' : 'Salvar correção'}</button><button type="button" className="ghost" disabled={saving} onClick={() => { setEditing(null); setError(''); }}>Cancelar</button></div>
+      </form>}
     </section>
   );
 }

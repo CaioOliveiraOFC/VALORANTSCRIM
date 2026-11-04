@@ -2,6 +2,18 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
+      "source": "/api/admin/login",
+      "destination": "/api/index?route=admin/login"
+    },
+    {
+      "source": "/api/admin/session",
+      "destination": "/api/index?route=admin/session"
+    },
+    {
+      "source": "/api/admin/logout",
+      "destination": "/api/index?route=admin/logout"
+    },
+    {
       "source": "/api/scrims/:id/tools",
       "destination": "/api/index?route=scrims/:id/tools"
     },
@@ -22,6 +34,10 @@
       "destination": "/api/index?route=scrims/:id/session"
     },
     {
+      "source": "/api/scrims/:id/access",
+      "destination": "/api/index?route=scrims/:id/access"
+    },
+    {
       "source": "/api/scrims/:id",
       "destination": "/api/index?route=scrims/:id"
     },
@@ -36,6 +52,14 @@
     {
       "source": "/preview.html",
       "destination": "/preview.html"
+    },
+    {
+      "source": "/guia-admin.html",
+      "destination": "/guia-admin.html"
+    },
+    {
+      "source": "/guia-admin.pdf",
+      "destination": "/guia-admin.pdf"
     },
     {
       "source": "/(.*)",

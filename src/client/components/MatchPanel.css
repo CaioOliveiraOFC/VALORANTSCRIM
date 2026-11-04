@@ -1,0 +1,21 @@
+.match-awaiting {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 26px 12px 32px;
+  text-align: center;
+}
+.match-awaiting-icon { width: 36px; height: 36px; color: #65cbc3; }
+.match-awaiting h2 { max-width: 520px; margin: 0; font-size: clamp(20px, 3vw, 28px); line-height: 1.3; }
+.match-awaiting p { max-width: 550px; margin: 0; color: var(--muted); line-height: 1.6; }
+.match-stat-correct { white-space: nowrap; font-size: 12px; }
+.match-stat-correction { display: grid; gap: 16px; margin-top: 18px; padding: 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
+.match-stat-correction h3 { margin: 0 0 6px; font-size: 16px; }
+.match-stat-correction p { margin: 0; }
+.match-stat-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; max-width: 450px; }
+.match-stat-fields label { display: grid; gap: 6px; color: var(--muted); font-size: 13px; }
+.match-stat-fields input { width: 100%; min-width: 0; color: var(--text); }
+.match-stat-error { color: #ff9ba3; }
+@media (max-width: 480px) {
+  .match-awaiting { padding: 22px 0 26px; }
+}

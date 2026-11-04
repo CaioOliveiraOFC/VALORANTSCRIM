@@ -1,5 +1,7 @@
 # Validação da migração Vercel + Supabase
 
+> **Registro histórico — atualização de contexto em 04/11/2026:** as evidências e pendências abaixo descrevem a migração de 16/10/2026. A versão atual do repositório usa login em `/admin`, com Supabase Auth e `app_metadata.scrim_admin: true`; links/chaves de admin não autorizam mais edições. Consulte [ADMIN-SETUP.md](ADMIN-SETUP.md) para o acesso atual e [README-VERCEL.md](../README-VERCEL.md) para o deploy. As evidências originais foram mantidas como registro da época, não como estado atual do ambiente.
+
 Branch: `feat/vercel-supabase-migration`, baseada em `002ecff` (main ao iniciar).
 O pacote ZIP fornecido foi extraído na raiz e `node apply-migration.mjs` executado.
 A interface React foi mantida. `public/preview.html` é apenas uma demonstração visual independente.
