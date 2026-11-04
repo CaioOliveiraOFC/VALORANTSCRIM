@@ -21,7 +21,7 @@ beforeEach(() => {
 });
 afterEach(() => { if (renderer) act(() => renderer!.unmount()); renderer = undefined; vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-it('polls only the public listing without credentials and removes rooms no longer public', async () => {
+it('polls only the public listing and removes rooms no longer public', async () => {
   let visible = true;
   const fetcher = vi.fn(async () => response(visible ? [room] : [])); vi.stubGlobal('fetch', fetcher);
   await mount(); expect(text(renderer!.root)).toContain('Sala pública');
@@ -29,8 +29,18 @@ it('polls only the public listing without credentials and removes rooms no longe
   expect(text(renderer!.root)).not.toContain('Sala pública');
   expect(fetcher).toHaveBeenCalledTimes(2);
   for (const [url, init] of vi.mocked(fetch).mock.calls) {
-    expect(url).toBe('/api/scrims'); expect(init).toMatchObject({ credentials: 'omit', cache: 'no-store' });
+    expect(url).toBe('/api/scrims'); expect(init).toMatchObject({ credentials: 'same-origin', cache: 'no-store' });
   }
+});
+
+it('loads public rooms behind a deployment gate that requires same-origin cookies', async () => {
+  const fetcher = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) =>
+    init?.credentials === 'same-origin' ? response([room]) : response({ error: 'Deployment authentication required' }, 401));
+  vi.stubGlobal('fetch', fetcher);
+  await mount();
+  expect(mocks.auth.status).toBe('viewer');
+  expect(text(renderer!.root)).toContain('Sala pública');
+  expect(renderer!.root.findAllByProps({ role: 'alert' })).toHaveLength(0);
 });
 
 it('revalidates on focus and visible return, and does not poll while hidden', async () => {

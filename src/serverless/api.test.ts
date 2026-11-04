@@ -532,6 +532,14 @@ describe('room visibility and reversible removal', () => {
     const result = await adminCall('/api/scrims?deleted=true');
     expect(result.body.map((room: any) => room.id)).toEqual([id]);
     expect(authCalls).toHaveLength(0);
+    expect(result.headers['set-cookie']).toBeUndefined();
+    const expired = await call('/api/scrims', 'GET', undefined, {
+      cookie: `_vercel_jwt=synthetic-preview-access; ${ADMIN_ACCESS_COOKIE}=expired; ${ADMIN_REFRESH_COOKIE}=${REFRESH_TOKEN}`,
+    });
+    expect(expired.status).toBe(200);
+    expect(expired.body.map((room: any) => room.id)).toEqual([id]);
+    expect(authCalls).toHaveLength(0);
+    expect(expired.headers['set-cookie']).toBeUndefined();
     const query = new URL(dbCalls.at(-1)!, 'https://test.supabase.co');
     expect(query.searchParams.get('is_public')).toBe('eq.true');expect(query.searchParams.get('deleted_at')).toBe('is.null');expect(query.searchParams.get('limit')).toBe('500');
     expect(result.body[0]).not.toHaveProperty('access');

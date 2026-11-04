@@ -30,7 +30,9 @@ export function Home() {
       if (clear) setHistory(null);
       setError(false);
       try {
-        const response = await fetch('/api/scrims', { signal: ctrl.signal, cache: 'no-store', credentials: 'omit' });
+        // Preview protection needs its same-origin cookie. This endpoint still
+        // returns only public rooms and never refreshes the app's admin session.
+        const response = await fetch('/api/scrims', { signal: ctrl.signal, cache: 'no-store', credentials: 'same-origin' });
         if (!response.ok) throw new Error();
         const body = await response.json();
         if (!Array.isArray(body)) throw new Error();
