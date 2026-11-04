@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { applyEvent, type Command, type ScrimEvent, type ScrimState } from '../../shared/scrim';
 import type { Role } from '../../shared/protocol';
 import type { ExternalMatch } from '../../shared/imports';
+import { adminFetch, responseClockOffset } from '../authFetch';
 import { newId } from '../util';
 
 export type ConnectionStatus = 'connecting' | 'online' | 'offline' | 'not-found';
@@ -29,7 +30,7 @@ async function responseJson<T>(response: Response): Promise<T> {
   return body as T;
 }
 
-export function useScrim(scrimId: string, adminKey: string | undefined) {
+export function useScrim(scrimId: string) {
   const [state, setState] = useState<ScrimState | null>(null);
   const [events, setEvents] = useState<ScrimEvent[]>([]);
   const [serverOffset, setServerOffset] = useState(0);
@@ -81,6 +82,7 @@ export function useScrim(scrimId: string, adminKey: string | undefined) {
     let joined = false;
     let heartbeatPending = false;
     let missing = false;
+    let roleRevision = 0;
     let verifiedRole: Role = 'viewer';
     type PresenceMember = { role?: Role; phx_ref?: string };
     type PresenceEntry = { metas?: PresenceMember[] } | PresenceMember[];
@@ -105,7 +107,7 @@ export function useScrim(scrimId: string, adminKey: string | undefined) {
         const snapshot = await responseJson<Snapshot>(response);
         if (disposed) return;
         if (typeof snapshot.serverNow === 'number' && Number.isFinite(snapshot.serverNow)) {
-          setServerOffset(snapshot.serverNow - (sentAt + Date.now()) / 2);
+          setServerOffset(responseClockOffset(response, snapshot.serverNow, sentAt));
         }
         acceptSnapshot(snapshot);
         if (!realtimeUrl || !anonKey) setStatus('offline');
@@ -116,18 +118,19 @@ export function useScrim(scrimId: string, adminKey: string | undefined) {
     refreshRef.current = refresh;
 
     async function verifyRole() {
+      const revision = ++roleRevision;
       try {
-        const res = await fetch(`/api/scrims/${scrimId}/session`, {
+        const res = await adminFetch(`/api/scrims/${scrimId}/session`, {
           method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ adminKey }),
+          body: JSON.stringify({}),
         });
         const r = await responseJson<{ role: Role }>(res);
-        if (!disposed) {
+        if (!disposed && revision === roleRevision) {
           verifiedRole = r.role;
           setRole(r.role);
           if (joined) sendWs('presence', { type: 'presence', event: 'track', payload: { role: verifiedRole } });
         }
-      } catch { if (!disposed) setRole('viewer'); }
+      } catch { if (!disposed && revision === roleRevision) { verifiedRole = 'viewer'; setRole('viewer'); } }
     }
 
     function sendWs(event: string, payload: Record<string, unknown>, ref: string | null = nextRef(), sendTopic = topic) {
@@ -218,55 +221,76 @@ export function useScrim(scrimId: string, adminKey: string | undefined) {
       };
     }
 
+    const authChanged = () => { void verifyRole(); };
+    const visibilityChanged = () => { if (document.visibilityState === 'visible') void verifyRole(); };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('scrim-auth-change', authChanged);
+      window.addEventListener('focus', authChanged);
+      document.addEventListener('visibilitychange', visibilityChanged);
+    }
     void refresh();
     void verifyRole();
     connect();
     // Mesmo após perda temporária de uma notificação, o cliente se reconcilia com o banco.
-    refreshTimer = setInterval(() => void refresh(), 20000);
+    refreshTimer = setInterval(() => { void refresh(); if (verifiedRole === 'admin') void verifyRole(); }, 20000);
     return () => {
       disposed = true;
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('scrim-auth-change', authChanged);
+        window.removeEventListener('focus', authChanged);
+        document.removeEventListener('visibilitychange', visibilityChanged);
+      }
       if (heartbeat) clearInterval(heartbeat);
       if (retryTimer) clearTimeout(retryTimer);
       if (refreshTimer) clearInterval(refreshTimer);
       socket?.close();
     };
-  }, [scrimId, adminKey, acceptSnapshot, acceptEvent]);
+  }, [scrimId, acceptSnapshot, acceptEvent]);
 
   const send = useCallback(async (command: Command) => {
-    if (!adminKey) throw new Error('Somente o admin pode editar.');
-    const response = await fetch(`/api/scrims/${scrimId}/command`, {
+    const response = await adminFetch(`/api/scrims/${scrimId}/command`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ adminKey, command }),
+      body: JSON.stringify({ command }),
     });
+    if (response.status === 401 || response.status === 403) {
+      setRole('viewer');
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('scrim-auth-change'));
+    }
     if (response.status === 409) void refreshRef.current();
     const result = await responseJson<EventReply>(response);
     acceptEvent(result.event);
-  }, [scrimId, adminKey, acceptEvent]);
+  }, [scrimId, acceptEvent]);
 
   const importRequest = useCallback(async (input: Record<string, unknown>) => {
-    if (!adminKey) throw new Error('Somente o admin pode importar.');
-    const response = await fetch(`/api/scrims/${scrimId}/imports`, {
+    const response = await adminFetch(`/api/scrims/${scrimId}/imports`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ ...input, adminKey }),
+      body: JSON.stringify(input),
     });
+    if (response.status === 401 || response.status === 403) {
+      setRole('viewer');
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('scrim-auth-change'));
+    }
     if (response.status === 409) void refreshRef.current();
     const result = await responseJson<{ matches?: ExternalMatch[]; match?: ExternalMatch; event?: ScrimEvent }>(response);
     if (result.event && stateRef.current?.id === scrimId) acceptEvent(result.event);
     return result;
-  }, [scrimId, adminKey, acceptEvent]);
+  }, [scrimId, acceptEvent]);
 
   const roomRequest = useCallback(async (input: Record<string, unknown>) => {
-    if (!adminKey) throw new Error('Somente o admin pode usar as ferramentas da sala.');
     const sentAt = Date.now();
     try {
-      const response = await fetch(`/api/scrims/${scrimId}/tools`, {
+      const response = await adminFetch(`/api/scrims/${scrimId}/tools`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ ...input, adminKey }),
+        body: JSON.stringify(input),
       });
+      if (response.status === 401 || response.status === 403) {
+        setRole('viewer');
+        if (typeof window !== 'undefined') window.dispatchEvent(new Event('scrim-auth-change'));
+      }
       const result = await responseJson<{ state?: ScrimState; event?: ScrimEvent; serverNow?: number }>(response);
       if (typeof result.serverNow === 'number' && Number.isFinite(result.serverNow)) {
-        setServerOffset(result.serverNow - (sentAt + Date.now()) / 2);
+        setServerOffset(responseClockOffset(response, result.serverNow, sentAt));
       }
       if (result.event && stateRef.current?.id === scrimId) acceptEvent(result.event);
       else void refreshRef.current();
@@ -276,7 +300,7 @@ export function useScrim(scrimId: string, adminKey: string | undefined) {
       void refreshRef.current();
       throw error;
     }
-  }, [scrimId, adminKey, acceptEvent]);
+  }, [scrimId, acceptEvent]);
 
   return { state, events, role, status, presence, send, importRequest, roomRequest, serverOffset };
 }

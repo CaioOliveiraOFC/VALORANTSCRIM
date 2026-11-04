@@ -1,111 +1,35 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import type { CreateScrimResponse, ScrimSummary } from '../../shared/protocol';
-import { FORMAT_LABEL, type SeriesFormat } from '../../shared/veto';
+import { useEffect, useState, type MouseEvent } from 'react';
+import type { ScrimSummary } from '../../shared/protocol';
+import { useAdminAuth } from '../hooks/useAdminAuth';
 import { navigate } from '../router';
 import { fmtDateTime } from '../util';
 
 const PHASE_LABEL: Record<ScrimSummary['phase'], string> = {
-  setup: 'Montando times',
-  veto: 'Veto',
-  live: 'Ao vivo',
-  finished: 'Encerrada',
+  setup: 'Montando times', veto: 'Veto', live: 'Ao vivo', finished: 'Encerrada',
 };
-
+function internal(event: MouseEvent<HTMLAnchorElement>) {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault(); navigate(event.currentTarget.getAttribute('href') ?? '/');
+}
 export function Home() {
-  const [title, setTitle] = useState('');
-  const [format, setFormat] = useState<SeriesFormat>('bo3');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const auth = useAdminAuth();
   const [history, setHistory] = useState<ScrimSummary[] | null>(null);
-
+  const [error, setError] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const [search, setSearch] = useState('');
   useEffect(() => {
-    const ctrl = new AbortController();
-    fetch('/api/scrims', { signal: ctrl.signal })
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setHistory)
-      .catch(() => setHistory([]));
+    const ctrl = new AbortController(); setError(false);
+    fetch('/api/scrims', { signal: ctrl.signal, cache: 'no-store' })
+      .then(async response => { if (!response.ok) throw new Error(); const body = await response.json(); if (!Array.isArray(body)) throw new Error(); return body as ScrimSummary[]; })
+      .then(value => { if (!ctrl.signal.aborted) setHistory(value); })
+      .catch(() => { if (!ctrl.signal.aborted) setError(true); });
     return () => ctrl.abort();
-  }, []);
-
-  async function create(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/scrims', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ title: title.trim() || `Scrim ${new Date().toLocaleDateString('pt-BR')}`, format }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? 'Falha ao criar a scrim.');
-      const { id, adminKey } = body as CreateScrimResponse;
-      navigate(`/s/${id}#admin=${encodeURIComponent(adminKey)}`);
-    } catch (err) {
-      setError((err as Error).message);
-      setBusy(false);
-    }
-  }
-
-  return (
-    <main className="page">
-      <header className="hero">
-        <h1>
-          Scrims <span className="accent">VALORANT</span>
-        </h1>
-        <p className="muted">Um admin organiza; todo mundo acompanha veto e placar em tempo real pelo link.</p>
-      </header>
-
-      <form className="card create" onSubmit={create}>
-        <h2>Nova scrim</h2>
-        <label>
-          Nome
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Scrim de sexta" maxLength={60} />
-        </label>
-        <fieldset className="segmented" aria-label="Formato">
-          {(Object.keys(FORMAT_LABEL) as SeriesFormat[]).map((f) => (
-            <label key={f} className={f === format ? 'on' : ''}>
-              <input type="radio" name="format" value={f} checked={f === format} onChange={() => setFormat(f)} />
-              {FORMAT_LABEL[f]}
-            </label>
-          ))}
-        </fieldset>
-        <button className="primary" disabled={busy}>
-          {busy ? 'Criando…' : 'Criar e virar admin'}
-        </button>
-        {error && <p className="error">{error}</p>}
-      </form>
-
-      <section className="card">
-        <h2>Histórico</h2>
-        {history === null ? (
-          <p className="muted">Carregando…</p>
-        ) : history.length === 0 ? (
-          <p className="muted">Nenhuma scrim gravada ainda.</p>
-        ) : (
-          <ul className="history">
-            {history.map((h) => (
-              <li key={h.id}>
-                <a
-                  href={`/s/${h.id}`}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    navigate(`/s/${h.id}`);
-                  }}
-                >
-                  <strong>{h.title}</strong>
-                  <span className="muted">{fmtDateTime(h.createdAt)}</span>
-                  <span>
-                    {h.teams[0]} <b>{h.score[0]}</b> x <b>{h.score[1]}</b> {h.teams[1]}
-                  </span>
-                  <span className="muted">{h.maps.join(' · ')}</span>
-                  <span className={`badge ${h.phase}`}>{PHASE_LABEL[h.phase]}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </main>
-  );
+  }, [retry]);
+  const visible = history?.filter(room => `${room.title} ${room.teams.join(' ')} ${room.maps.join(' ')}`.toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR')));
+  return <main className="page public-lobby">
+    <header className="public-lobby-heading"><div><span className="admin-mode-label">Para acompanhar</span><h1>Acompanhar uma scrim</h1><p className="muted">Escolha uma sala para ver os times, o veto e os resultados. Não precisa de login.</p></div><a className="button" href="/admin" onClick={internal}>{auth.status === 'admin' ? 'Área do administrador' : 'Entrar como admin'}</a></header>
+    <section className="card public-room-section"><div className="admin-room-heading"><h2>Salas e histórico</h2><label><span className="admin-sr-only">Buscar scrims</span><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar sala, time ou mapa" /></label></div>
+      {error ? <div className="admin-list-error" role="alert"><p>Não foi possível carregar as salas.</p><button type="button" onClick={() => setRetry(value => value + 1)}>Tentar novamente</button></div> : history === null ? <p className="muted" role="status">Carregando salas…</p> : !visible?.length ? <p className="muted">{history.length ? 'Nenhuma sala encontrada. Tente outro nome ou filtro.' : 'Ainda não há scrims para acompanhar.'}</p> : <ul className="history">{visible.map(room => <li key={room.id}><a href={`/s/${room.id}`} onClick={internal}><strong>{room.title}</strong><span className="muted">{fmtDateTime(room.createdAt)}</span><span>{room.teams[0]} <b>{room.score[0]}</b> x <b>{room.score[1]}</b> {room.teams[1]}</span><span className="muted">{room.maps.join(' · ')}</span><span className={`badge ${room.phase}`}>{PHASE_LABEL[room.phase]}</span></a></li>)}</ul>}
+    </section>
+  </main>;
 }

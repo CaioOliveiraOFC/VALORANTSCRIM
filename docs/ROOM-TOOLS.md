@@ -39,7 +39,7 @@ O admin preenche **O que estamos decidindo?**, por exemplo: “Quem começa bani
 
 ## Implementação e ambiente
 
-`POST /api/scrims/:id/tools` recebe foco, início e decisão. O servidor autentica a chave de admin e gera o resultado com `crypto.randomInt`; o cliente não envia vencedores, candidatos ou relógios. Inícios repetidos com o mesmo `requestId` recuperam a mesma tentativa. Eventos internos de sorteio/foco são recusados em `/command`.
+`POST /api/scrims/:id/tools` recebe foco, início e decisão. O servidor verifica a sessão de uma conta liberada como admin e gera o resultado com `crypto.randomInt`; o cliente não envia vencedores, candidatos ou relógios. Inícios repetidos com o mesmo `requestId` recuperam a mesma tentativa. Eventos internos de sorteio/foco são recusados em `/command`. A criação e a liberação das contas estão em [ADMIN-SETUP.md](ADMIN-SETUP.md).
 
 Estado e eventos usam a transação e o controle de versão existentes em `append_scrim_event`, transmitidos por Supabase Realtime. Campos novos são opcionais, mantendo snapshots e replays antigos. O sorteio de times preserva capitães somente quando o novo comando pede isso explicitamente; eventos históricos conservam o comportamento anterior.
 

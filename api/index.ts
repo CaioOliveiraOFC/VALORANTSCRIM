@@ -1,6 +1,7 @@
 /** API serverless Vercel: somente o serviço usa a chave secreta do Supabase. */
-import { createHash, randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomInt, randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { AdminAuthError, assertSameOrigin, getAdminSession, loginAdmin, logoutAdmin } from '../src/serverless/adminAuth.js';
 import { fetchMatch, findMatches, ProviderError, regionCode } from '../src/server/henrik.js';
 import type { PlayerLink } from '../src/shared/imports.js';
 import { MAPS } from '../src/shared/maps.js';
@@ -64,16 +65,14 @@ async function room(id: string): Promise<DbScrim> {
   return rows[0]!;
 }
 
-function authorize(row: DbScrim, key: unknown): boolean {
-  if (typeof key !== 'string' || key.length > 256 || !key) return false;
-  const expected = Buffer.from(row.admin_key_hash, 'hex');
-  const actual = Buffer.from(hash(key), 'hex');
-  return expected.length === actual.length && timingSafeEqual(expected, actual);
+async function requireAdmin(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  assertSameOrigin(req);
+  if (!await getAdminSession(req, res)) throw new ApiError(403, 'Entre como administrador para editar a sala.');
 }
 
 /** Each tool accepts only its intent; winners and clocks are server-owned. */
 function toolFields(body: Record<string, unknown>, fields: string[]) {
-  const allowed = new Set(['adminKey', 'action', ...fields]);
+  const allowed = new Set(['action', ...fields]);
   if (Object.keys(body).some((field) => !allowed.has(field))) {
     throw new ApiError(400, 'Campos de sorteio ou foco inválidos. Envie apenas a ação desejada.');
   }
@@ -138,9 +137,30 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     await db('scrims?select=id&limit=1');
     return send(res, 200, { ok: true, storage: 'supabase', realtime: 'supabase-postgres-changes' });
   }
+  if (path[0] === 'admin') {
+    if (path.length === 2 && path[1] === 'session' && req.method === 'GET') {
+      const session = await getAdminSession(req, res);
+      return send(res, 200, session ? { authenticated: true, user: { email: session.email } } : { authenticated: false });
+    }
+    if (path.length === 2 && path[1] === 'login' && req.method === 'POST') {
+      assertSameOrigin(req);
+      if (!String(req.headers['content-type'] ?? '').toLowerCase().startsWith('application/json')) throw new ApiError(400, 'Envie os dados de login em JSON.');
+      const input = await jsonBody(req);
+      if (Object.keys(input).some(key => !['email', 'password'].includes(key))) throw new ApiError(400, 'Dados de login inválidos.');
+      const session = await loginAdmin(req, res, input.email, input.password);
+      return send(res, 200, { authenticated: true, user: { email: session.email } });
+    }
+    if (path.length === 2 && path[1] === 'logout' && req.method === 'POST') {
+      assertSameOrigin(req);
+      await logoutAdmin(req, res);
+      return send(res, 200, { authenticated: false });
+    }
+    throw new ApiError(405, 'Método ou rota não permitido.');
+  }
   if (path[0] !== 'scrims') throw new ApiError(404, 'Rota não encontrada.');
 
   if (path.length === 1 && req.method === 'POST') {
+    await requireAdmin(req, res);
     const input = await jsonBody(req);
     const format = input.format;
     if (format !== 'bo1' && format !== 'bo3' && format !== 'bo5') throw new ApiError(400, 'Formato inválido.');
@@ -152,7 +172,7 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     await db('rpc/create_scrim', { method: 'POST', body: JSON.stringify({
       p_id: id, p_key_hash: hash(adminKey), p_state: state, p_event: event, p_at: event.at,
     }) });
-    return send(res, 201, { id, adminKey });
+    return send(res, 201, { id });
   }
 
   if (path.length === 1 && req.method === 'GET') {
@@ -183,12 +203,12 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     return send(res, 200, toMarkdown(current.state), 'text/markdown; charset=utf-8');
   }
   if (path.length === 3 && path[2] === 'session' && req.method === 'POST') {
-    const body = await jsonBody(req);
-    return send(res, 200, { role: authorize(current, body.adminKey) ? 'admin' : 'viewer' });
+    assertSameOrigin(req);
+    return send(res, 200, { role: await getAdminSession(req, res) ? 'admin' : 'viewer' });
   }
   if (path.length === 3 && path[2] === 'tools' && req.method === 'POST') {
     const body = await jsonBody(req);
-    if (!authorize(current, body.adminKey)) throw new ApiError(403, 'Somente o admin pode chamar atenção ou controlar sorteios.');
+    await requireAdmin(req, res);
     const now = Date.now();
     let toolEvent: RoomToolsEvent;
     if (body.action === 'focus') {
@@ -235,17 +255,17 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     const event: ScrimEvent = { ...toolEvent, seq: current.version + 1, at: now };
     const state = applyEvent(current.state, event);
     await db('rpc/append_scrim_event', { method: 'POST', body: JSON.stringify({
-      p_id: id, p_key_hash: hash(body.adminKey as string), p_expected_version: current.version, p_state: state, p_event: event,
+      p_id: id, p_key_hash: current.admin_key_hash, p_expected_version: current.version, p_state: state, p_event: event,
     }) });
     return send(res, 200, { state, event, serverNow: Date.now() });
   }
   if (path.length === 3 && path[2] === 'imports' && req.method === 'POST') {
     const body = await jsonBody(req);
-    if (!authorize(current, body.adminKey)) throw new ApiError(403, 'Somente o admin pode importar.');
+    await requireAdmin(req, res);
     const region = regionCode(body.region);
     if (!['search', 'detail', 'confirm'].includes(String(body.action))) throw new ApiError(400, 'Ação de importação inválida.');
     if (body.action === 'confirm' && activeDraw(current.state, Date.now())) throw new ApiError(409, 'Resolva o sorteio antes de importar a partida.');
-    const allowed = await db('rpc/claim_match_lookup', { method: 'POST', body: JSON.stringify({ p_id: id, p_key_hash: hash(body.adminKey as string) }) });
+    const allowed = await db('rpc/claim_match_lookup', { method: 'POST', body: JSON.stringify({ p_id: id, p_key_hash: current.admin_key_hash }) });
     if (allowed !== true) throw new ApiError(429, 'Muitas consultas. Aguarde um minuto antes de buscar novamente.');
     if (body.action === 'search') return send(res, 200, { matches: await findMatches(region, body.riotId) });
     if (body.action === 'detail') {
@@ -261,13 +281,13 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
       mapIndex: body.mapIndex as number, redTeam: body.redTeam as 'A' | 'B',
       links: body.links.map((l: PlayerLink) => ({ playerId: l.playerId, puuid: l.puuid })) };
     const state = applyEvent(current.state, event);
-    await db('rpc/import_match_result', { method: 'POST', body: JSON.stringify({ p_id: id, p_key_hash: hash(body.adminKey as string),
+    await db('rpc/import_match_result', { method: 'POST', body: JSON.stringify({ p_id: id, p_key_hash: current.admin_key_hash,
       p_expected_version: current.version, p_state: state, p_event: event, p_raw: raw }) });
     return send(res, 200, { state, event });
   }
   if (path.length === 3 && path[2] === 'command' && req.method === 'POST') {
     const body = await jsonBody(req);
-    if (!authorize(current, body.adminKey)) throw new ApiError(403, 'Somente o admin pode editar.');
+    await requireAdmin(req, res);
     const command = body.command;
     if (!command || typeof command !== 'object' || Array.isArray(command) || !('type' in command) ||
         typeof command.type !== 'string' || command.type === 'scrim.create' || command.type === 'match.import' ||
@@ -278,7 +298,7 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     const event = { ...(command as Command), seq: current.version + 1, at: Date.now() } as ScrimEvent;
     const state = applyEvent(current.state, event);
     await db('rpc/append_scrim_event', { method: 'POST', body: JSON.stringify({
-      p_id: id, p_key_hash: hash(body.adminKey as string), p_expected_version: current.version,
+      p_id: id, p_key_hash: current.admin_key_hash, p_expected_version: current.version,
       p_state: state, p_event: event,
     }) });
     return send(res, 200, { state, event });
@@ -289,6 +309,7 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
 export default async function serve(req: IncomingMessage, res: ServerResponse) {
   try { await handler(req, res); }
   catch (err) {
+    if (err instanceof AdminAuthError) return send(res, err.status, { error: err.message });
     if (err instanceof ProviderError) return send(res, err.status, { error: err.message });
     if (err instanceof ApiError) return send(res, err.status, { error: err.message });
     if (err instanceof DomainError) return send(res, 400, { error: err.message });

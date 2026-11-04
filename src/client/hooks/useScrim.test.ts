@@ -21,7 +21,7 @@ class Socket {
 async function flush(){await act(async()=>{for(let i=0;i<8;i++) await Promise.resolve();});}
 async function mount(id='abc123'){
  let value:ReturnType<typeof Hook>;
- function Client(){value=useScrim(id,undefined);return null;}
+ function Client(){value=useScrim(id);return null;}
  let renderer:ReactTestRenderer;
  await act(async()=>{renderer=create(createElement(Client));});renders.push(renderer!);await flush();
  return {get:()=>value!,renderer:renderer!};
@@ -106,11 +106,33 @@ it('ignores public broadcast payloads pretending to be authoritative room tools'
  expect(client.get().state?.roomFocus).toBeUndefined();expect(client.get().state?.version).toBe(1);
 });
 
-it('aligns its clock with the server and refuses room-tool writes without an admin key', async () => {
+it('aligns its clock and surfaces server denial without sending legacy credentials', async () => {
  const serverNow=Date.now()+45000;
  Object.assign(snapshot,{serverNow});
  const client=await mount();
  expect(client.get().serverOffset).toBe(45000);
- await expect(client.get().roomRequest({action:'draw.start',kind:'coin',purpose:'Teste',requestId:'request-one'})).rejects.toThrow('Somente o admin');
- expect(vi.mocked(fetch).mock.calls.some(([path])=>String(path).endsWith('/tools'))).toBe(false);
+ vi.mocked(fetch).mockImplementation(async (input:any)=>String(input).endsWith('/tools') ? new Response(JSON.stringify({error:'Entre como administrador.'}),{status:403}) : new Response(JSON.stringify(String(input).endsWith('/session')?{role:'viewer'}:snapshot),{status:200}));
+ await act(async()=>{await expect(client.get().roomRequest({action:'draw.start',kind:'coin',purpose:'Teste',requestId:'request-one'})).rejects.toThrow('Entre como administrador');});
+ const post=vi.mocked(fetch).mock.calls.find(([path])=>String(path).endsWith('/tools'));
+ expect(post).toBeDefined();expect(JSON.parse(String(post?.[1]?.body))).not.toHaveProperty('adminKey');expect(client.get().role).toBe('viewer');
+});
+
+it('does not restore admin from an older role response after a newer logout check', async () => {
+ let release!: (value: unknown) => void;let reads=0;
+ const windowEvents=new EventTarget();const documentEvents=new EventTarget();
+ vi.stubGlobal('window',windowEvents);
+ vi.stubGlobal('document',Object.assign(documentEvents,{visibilityState:'visible'}));
+ vi.mocked(fetch).mockImplementation(async(input:any)=>{
+  if(String(input).endsWith('/session')){
+   const response=new Response('{}',{status:200});
+   if(reads++===0)response.json=()=>new Promise(resolve=>{release=resolve;});
+   else response.json=async()=>({role:'viewer'});
+   return response;
+  }
+  return new Response(JSON.stringify(snapshot),{status:200});
+ });
+ const client=await mount();
+ act(()=>{windowEvents.dispatchEvent(new Event('scrim-auth-change'));});await flush();
+ await act(async()=>{release({role:'admin'});});await flush();
+ expect(client.get().role).toBe('viewer');
 });

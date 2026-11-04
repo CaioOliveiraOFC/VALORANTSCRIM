@@ -1,6 +1,6 @@
 # Importação de customizadas pela HenrikDev
 
-Na aba **Partida**, o admin pode buscar por `Nome#TAG` e região ou colar um UUID/link direto `https://tracker.gg/valorant/match/<UUID>`. A busca retorna até dez partidas recentes de PC, customizadas padrão, completas, com dois times de cinco. A disponibilidade e o atraso dependem da HenrikDev; não é acompanhamento ao vivo.
+Depois de entrar em `/admin` com uma conta liberada conforme [ADMIN-SETUP.md](ADMIN-SETUP.md), o organizador pode buscar na aba **Partida** por `Nome#TAG` e região ou colar um UUID/link direto `https://tracker.gg/valorant/match/<UUID>`. A busca retorna até dez partidas recentes de PC, customizadas padrão, completas, com dois times de cinco. A disponibilidade e o atraso dependem da HenrikDev; não é acompanhamento ao vivo.
 
 ## Preparar o Preview antes do merge
 
@@ -25,9 +25,9 @@ Os lados reais são derivados do primeiro round quando disponíveis, para o rela
 
 ## Persistência e segurança
 
-`POST /api/scrims/:id/imports` aceita as ações `search`, `detail` e `confirm`. Todas verificam a chave de admin antes de consultar a HenrikDev. O navegador envia apenas seleção, mapa, times, vínculos e versão; o servidor consulta novamente a partida na confirmação. IDs e regiões são validados, e as requisições são dirigidas exclusivamente a `api.henrikdev.xyz`.
+`POST /api/scrims/:id/imports` aceita as ações `search`, `detail` e `confirm`. Todas exigem a sessão de administrador, verificada no servidor pelo Supabase Auth e pela permissão `app_metadata.scrim_admin: true`, antes de consultar a HenrikDev. A sessão usa cookies HttpOnly; o navegador não envia uma chave de sala no corpo da requisição. O navegador envia apenas seleção, mapa, times, vínculos e versão; o servidor consulta novamente a partida na confirmação. IDs e regiões são validados, e as requisições são dirigidas exclusivamente a `api.henrikdev.xyz`.
 
-Um único evento `match.import` contém os dados normalizados e dez associações. O estado mantém IDs manuais, nomes, veto e anotações e adiciona PUUID/Riot ID aos jogadores. A RPC `import_match_result` grava estado, evento e resposta original privada na mesma transação, com comparação de versão e hash da chave de admin. A chave de API, chave de admin e hash não são incluídos no evento público. A auditoria identifica o ator como **admin da scrim**, pois o aplicativo não possui contas pessoais de administradores.
+Um único evento `match.import` contém os dados normalizados e dez associações. O estado mantém IDs manuais, nomes, veto e anotações e adiciona PUUID/Riot ID aos jogadores. A RPC `import_match_result` grava estado, evento e resposta original privada na mesma transação, com comparação de versão e do hash interno da sala, mantido para compatibilidade das RPCs. Esse hash é obtido pelo servidor após autorizar a conta; não funciona como credencial enviada pelo cliente. A chave da Henrik, senhas, cookies, tokens e hash não são incluídos no evento público. A auditoria do evento ainda identifica o ator genericamente como **admin da scrim**: o login autoriza a operação, mas o evento não atribui a importação a uma conta específica.
 
 A tabela `scrim_match_imports` tem RLS, sem acesso anon/authenticated, e chave única `(scrim_id, provider, match_id)`. Duplicatas ou conflitos desfazem toda a transação. A mesma partida pode ser usada em scrims diferentes; não é duplicada dentro da mesma scrim. A tabela não entra na publicação Realtime: somente o evento normalizado público é distribuído.
 
@@ -37,6 +37,6 @@ A tabela `scrim_match_imports` tem RLS, sem acesso anon/authenticated, e chave �
 
 Os testes cobrem normalização, autorização, dados autoritativos, conflitos, vínculos duplicados, times invertidos, mapas incompatíveis, replay, preservação dos nomes, correções manuais, duas assinaturas Realtime simuladas, SQL real em PGlite, rollback, auditoria privada e limites de consultas. O fluxo visual foi exercitado no Chromium com API simulada: drag and drop real, seleção por clique, revisão obrigatória, largura móvel, importação, relatório e leitura de espectador.
 
-O módulo de servidor também foi consultado contra a HenrikDev real com a partida `29bcb708-4964-456c-8844-891fc26fbce0`: Lotus, 13×2, dez jogadores, quinze rounds. A busca por Sova Masterclass#poker encontrou duas customizadas, incluindo a referência. Nenhuma importação ou migração foi aplicada ao Supabase de produção nesta tarefa.
+Na validação original da importação, o módulo de servidor foi consultado contra a HenrikDev real com a partida `29bcb708-4964-456c-8844-891fc26fbce0`: Lotus, 13×2, dez jogadores, quinze rounds. A busca por Sova Masterclass#poker encontrou duas customizadas, incluindo a referência. Naquela validação, nenhuma importação ou migração foi aplicada ao Supabase de produção.
 
 No Codex, Node 24 precisou de `NODE_USE_ENV_PROXY=1` para usar o proxy de rede ao testar a API real. Isso não é necessário para o código da aplicação nem deve ser adicionado indiscriminadamente ao deploy da Vercel.

@@ -28,7 +28,8 @@ export interface ScrimSummary {
 
 export interface CreateScrimResponse {
   id: string;
-  adminKey: string;
+  /** Present only in responses from the retired local Node transport. Vercel uses account sessions. */
+  adminKey?: string;
 }
 
 export const WS_PATH = '/ws';

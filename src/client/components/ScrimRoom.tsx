@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { currentMapIndex, type Command, type ScrimState } from '../../shared/scrim';
 import { activeDraw, type FocusTarget } from '../../shared/roomTools';
 import { FORMAT_LABEL } from '../../shared/veto';
-import { forgetAdminKey, readAdminKey } from '../adminKeys';
+import { forgetAdminKey } from '../adminKeys';
 import { useScrim } from '../hooks/useScrim';
 import { navigate } from '../router';
 import { copyText } from '../util';
@@ -44,11 +44,16 @@ const tabForPhase = (phase: ScrimState['phase']): Tab =>
   ({ setup: 'teams', veto: 'veto', live: 'match', finished: 'report' } as const)[phase];
 
 export function ScrimRoom({ scrimId }: { scrimId: string }) {
-  const [adminKey] = useState(() => readAdminKey(scrimId));
-  const { state, events, role, status, presence, send, importRequest, roomRequest, serverOffset } = useScrim(scrimId, adminKey);
+  const { state, events, role, status, presence, send, importRequest, roomRequest, serverOffset } = useScrim(scrimId);
   const [tab, setTab] = useState<Tab | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const isAdmin = role === 'admin';
+  useEffect(() => {
+    // Old URL keys no longer grant permissions. Remove them from this browser.
+    forgetAdminKey(scrimId);
+    const fragment = new URLSearchParams(location.hash.slice(1));
+    if (fragment.has('admin')) history.replaceState(null, '', location.pathname + location.search);
+  }, [scrimId]);
   // Espectadores seguem a fase automaticamente até escolherem uma aba.
   const phase = state?.phase;
   const [followPhase, setFollowPhase] = useState(true);
@@ -227,41 +232,13 @@ export function ScrimRoom({ scrimId }: { scrimId: string }) {
             >
               Copiar link p/ Discord
             </button>
-            {isAdmin && adminKey && (
-              <button
-                className="ghost"
-                title="Para abrir como admin em outro dispositivo. Não mande no Discord."
-                onClick={async () => {
-                  const link = `${spectatorLink}#admin=${encodeURIComponent(adminKey)}`;
-                  setToast((await copyText(link)) ? 'Link de ADMIN copiado. Não compartilhe.' : link);
-                }}
-              >
-                Copiar link de admin
-              </button>
-            )}
-            {isAdmin && (
-              <button
-                className="ghost"
-                title="Este navegador deixa de ser admin desta scrim"
-                onClick={() => {
-                  if (confirm('Remover o acesso de admin deste navegador? Você precisará do link de admin para voltar.')) {
-                    forgetAdminKey(scrimId);
-                    location.reload();
-                  }
-                }}
-              >
-                Sair do admin
-              </button>
-            )}
+            {!isAdmin && <a className="button" href={`/admin?returnTo=${encodeURIComponent(`/s/${scrimId}`)}`} onClick={event => { event.preventDefault(); navigate(`/admin?returnTo=${encodeURIComponent(`/s/${scrimId}`)}`); }}>Entrar como admin</a>}
           </div>
         </header>
 
-        {isAdmin && ctx.state.version <= 1 && (
-          <p className="callout">
-            Este navegador ficou salvo como admin. Use <b>Copiar link de admin</b> e guarde-o se for editar de outro
-            dispositivo. Para os amigos, use <b>Copiar link p/ Discord</b>: quem abre por ele só assiste.
-          </p>
-        )}
+        <div className="callout room-role-help">
+          {isAdmin ? <><strong>Você está administrando esta sala.</strong> Compartilhe o link da sala com quem vai acompanhar. <a href="/guia-admin.html">Ver o guia do administrador</a></> : <><strong>Você está acompanhando como espectador.</strong> Quem vai organizar pode entrar como admin. <a href={`/admin?returnTo=${encodeURIComponent(`/s/${scrimId}`)}`} onClick={event => { event.preventDefault(); navigate(`/admin?returnTo=${encodeURIComponent(`/s/${scrimId}`)}`); }}>Entrar para organizar</a></>}
+        </div>
 
         <RoomTools state={ctx.state} isAdmin={isAdmin} request={roomRequest} now={now} onFocusAll={focusEveryone} onBlockingChange={setToolsBlocking} />
 
