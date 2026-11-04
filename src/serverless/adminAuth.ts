@@ -12,7 +12,7 @@ export class AdminAuthError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
 }
 
-export interface AdminSession { userId: string; email: string; }
+export interface AdminSession { userId: string; email: string; canDeleteRooms: boolean; }
 interface Tokens { access: string; refresh: string; maxAge: number; }
 interface VerifiedUser { session: AdminSession | null; invalidToken: boolean; }
 
@@ -128,7 +128,10 @@ async function verifyUser(access: string): Promise<VerifiedUser> {
   if (!admin || typeof body.id !== 'string' || !body.id || typeof body.email !== 'string' || !body.email) {
     return { session: null, invalidToken: false };
   }
-  return { session: { userId: body.id, email: body.email }, invalidToken: false };
+  const canDeleteRooms = (metadata as Record<string, unknown>).scrim_delete_rooms === true ||
+    (body.email.toLowerCase() === 'caio.oliveira2014@hotmail.com' &&
+      typeof body.email_confirmed_at === 'string' && body.email_confirmed_at.trim().length > 0);
+  return { session: { userId: body.id, email: body.email, canDeleteRooms }, invalidToken: false };
 }
 
 /** Verifies roles against Auth on every request, so revoking metadata takes effect immediately. */

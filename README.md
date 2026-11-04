@@ -6,11 +6,12 @@ A aplicação em uso combina React, Vercel Functions, Supabase Postgres/Realtime
 
 - **Deploy e desenvolvimento:** [README-VERCEL.md](README-VERCEL.md).
 - **Criar/liberar os administradores:** [ADMIN-SETUP.md](docs/ADMIN-SETUP.md).
+- **Permitir excluir/restaurar salas a outro admin:** [room-delete-access.sql](docs/room-delete-access.sql).
 - **Tutorial para enviar aos organizadores:** [guia online](public/guia-admin.html) e [PDF](public/guia-admin.pdf), publicados em `/guia-admin.html` e `/guia-admin.pdf`.
 - **Partidas pela API:** [importação de customizadas](docs/MATCH-IMPORT.md).
 - **Foco e sorteios compartilhados:** [ROOM-TOOLS.md](docs/ROOM-TOOLS.md).
 
-O administrador cria a sala, cadastra dez jogadores, monta os times, conduz o veto e importa os resultados. O histórico permanece em eventos. Contas comuns sem `app_metadata.scrim_admin: true` e links antigos com `#admin=…` não concedem permissão de edição.
+O administrador cria a sala, cadastra dez jogadores, monta os times, conduz o veto e importa os resultados. Novas salas começam ocultas; o olho no painel permite mostrá-las aos espectadores. Placar e rounds vêm da importação; a ação **Corrigir estatística** permite ajustar K/D/A depois de importar. O histórico permanece em eventos, inclusive nas salas excluídas da lista e restauradas. Contas comuns sem `app_metadata.scrim_admin: true` e links antigos com `#admin=…` não concedem permissão de edição.
 
 ## Servidor Node legado (referência)
 

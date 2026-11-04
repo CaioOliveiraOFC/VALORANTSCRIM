@@ -114,3 +114,54 @@
   .admin-create-form .segmented > label { padding: 8px 6px; }
   .admin-password-field > button { font-size: 11px; }
 }
+/* Visibility and recovery belong beside the room they affect. */
+.admin-create-form .admin-visibility-option { display: flex; gap: 11px; align-items: flex-start; padding: 13px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; background: var(--bg); }
+.admin-visibility-option > input[type='checkbox'] { position: static; opacity: 1; pointer-events: auto; width: 20px; height: 20px; min-height: 20px; padding: 0; flex: 0 0 20px; margin: 2px 0 0; accent-color: var(--team-a); }
+.admin-visibility-option > span { min-width: 0; display: grid; gap: 5px; }
+.admin-visibility-option strong { font-size: 12px; line-height: 1.5; font-weight: 650; }
+.admin-visibility-option small { font-size: 11px; color: #abbabd; font-weight: 400; line-height: 1.65; }
+.admin-room-filters { display: flex; gap: 6px; margin: -3px 0 19px; }
+.admin-room-filters > button { padding: 7px 12px; min-height: 38px; font-size: 12px; background: transparent; border-color: transparent; }
+.admin-room-filters > button[aria-pressed='true'] { color: var(--team-a); background: var(--surface-2); border-color: var(--border); }
+.admin-room-filter-help { color: #aebcbe; font-size: 12px; line-height: 1.65; margin: -4px 0 18px; max-width: 65ch; }
+.admin-room-feedback { margin: 0 0 16px; }
+.admin-room-notice { color: #b5d8d4; font-size: 12px; line-height: 1.6; border-left: 2px solid var(--team-a); padding: 8px 12px; background: #162e34; border-radius: 0 6px 6px 0; margin: 0 0 16px; overflow-wrap: anywhere; }
+.admin-managed-rooms > li { border-bottom: 1px solid var(--border); padding: 16px 0; }
+.admin-managed-room-row { display: flex; align-items: center; justify-content: space-between; gap: 15px; min-width: 0; }
+.admin-managed-room-info { display: grid; gap: 5px; min-width: 0; }
+.admin-managed-room-info > strong { font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.admin-managed-room-info > span:not(.admin-room-visibility) { color: #b9c6c7; font-size: 11px; overflow-wrap: anywhere; }
+.admin-managed-room-info > small { color: #a4b2b6; font-size: 10px; }
+.admin-room-visibility { justify-self: start; display: inline-flex; align-items: center; min-height: 24px; font-size: 10px; line-height: 1.4; padding: 3px 7px; background: var(--surface-2); color: #b8c5c8; border-radius: 4px; }
+.admin-room-visibility.is-public { color: #9bd6ce; background: #183638; }
+.admin-room-visibility.is-deleted { color: #d9c3b6; background: #332d2c; }
+.admin-managed-room-actions { display: flex; align-items: center; gap: 7px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; max-width: 56%; }
+.admin-managed-room-actions > button { font-size: 11px; min-height: 42px; padding: 8px 10px; }
+.admin-room-manage-link { color: var(--team-a); font-size: 12px; font-weight: 600; text-decoration: none; padding: 10px 6px; min-height: 42px; display: inline-flex; align-items: center; }
+.admin-room-manage-link:hover { text-decoration: underline; text-underline-offset: 4px; }
+.admin-managed-room-actions > .admin-room-eye { width: 42px; min-width: 42px; padding: 9px; display: grid; place-items: center; background: transparent; color: #aebec5; }
+.admin-managed-room-actions > .admin-room-eye.is-visible { color: var(--team-a); background: #183638; border-color: #3d6667; }
+.admin-managed-room-actions > .admin-room-delete { background: transparent; border-color: transparent; color: #f0aab1; }
+.admin-managed-room-actions > .admin-room-delete:hover:not(:disabled) { background: #35252f; border-color: #67404c; }
+.admin-room-restore { color: var(--team-a); }
+.admin-delete-confirmation { margin-top: 15px; padding: 15px; border: 1px solid #714350; border-radius: 8px; background: #30242d; }
+.admin-delete-confirmation h3 { margin: 0 0 8px; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.admin-delete-confirmation p { color: #d8c3c7; font-size: 12px; line-height: 1.65; max-width: 60ch; margin: 0 0 15px; }
+.admin-delete-confirmation > div { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.admin-delete-confirmation button { min-height: 42px; font-size: 12px; }
+.admin-delete-confirmation .admin-room-delete-confirm { color: #fff3f3; background: #963a49; border-color: #a94957; font-weight: 650; }
+.admin-delete-confirmation .admin-room-delete-confirm:hover:not(:disabled) { background: #a44050; }
+@media(max-width: 600px) {
+  .admin-create-form .admin-visibility-option { padding: 12px; }
+  .admin-visibility-option strong { font-size: 12px; }
+  .admin-managed-room-row { align-items: flex-start; gap: 13px; flex-direction: column; }
+  .admin-managed-room-actions { justify-content: flex-start; max-width: 100%; width: 100%; gap: 8px; }
+  .admin-managed-room-actions > button, .admin-room-manage-link { min-height: 44px; font-size: 12px; }
+  .admin-managed-room-actions > .admin-room-eye { width: 44px; min-width: 44px; }
+  .admin-managed-room-actions > .admin-room-delete { margin-left: auto; }
+  .admin-delete-confirmation { padding: 14px 12px; }
+  .admin-delete-confirmation > div > button { flex: 1; font-size: 12px; }
+  .admin-room-filters > button { min-height: 40px; }
+}
+/* Hidden radios must not keep their full input width beyond the last segment. */
+.admin-create-form .segmented input[type='radio'] { left: 0; top: 0; width: 1px; height: 1px; min-height: 0; margin: 0; padding: 0; border: 0; clip-path: inset(50%); }

@@ -34,6 +34,10 @@
       "destination": "/api/index?route=scrims/:id/session"
     },
     {
+      "source": "/api/scrims/:id/access",
+      "destination": "/api/index?route=scrims/:id/access"
+    },
+    {
       "source": "/api/scrims/:id",
       "destination": "/api/index?route=scrims/:id"
     },

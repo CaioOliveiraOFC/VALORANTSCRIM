@@ -85,3 +85,14 @@ it('leaves a denied login as a spectator and lets a failed session check be retr
   await expect(auth.login('viewer@example.test', 'wrong')).rejects.toThrow('Acesso não liberado');
   expect(auth.status).toBe('viewer'); expect(localStorage.setItem).not.toHaveBeenCalled();
 });
+
+it('takes deletion permission only from the server and resets it when the session changes', async () => {
+  let permission: unknown = undefined;
+  let authenticated = true;
+  vi.stubGlobal('fetch', vi.fn(async () => response({ authenticated, user: { email: 'owner@example.test' }, permissions: { canDeleteRooms: permission } })));
+  await mount(); expect(auth.canDeleteRooms).toBe(false);
+  permission = true; await act(async () => { await auth.refresh(); }); expect(auth.canDeleteRooms).toBe(true);
+  permission = 'true'; await act(async () => { await auth.refresh(); }); expect(auth.canDeleteRooms).toBe(false);
+  permission = true; await act(async () => { await auth.refresh(); }); expect(auth.canDeleteRooms).toBe(true);
+  authenticated = false; await act(async () => { await auth.refresh(); }); expect(auth.canDeleteRooms).toBe(false); expect(auth.status).toBe('viewer');
+});

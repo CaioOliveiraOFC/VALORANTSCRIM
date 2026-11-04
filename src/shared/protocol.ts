@@ -15,6 +15,12 @@ export type ServerMessage =
   | { type: 'error'; requestId?: string; message: string }
   | { type: 'presence'; viewers: number; admins: number };
 
+export interface RoomAccess {
+  isPublic: boolean;
+  deletedAt: number | null;
+  accessVersion: number;
+}
+
 export interface ScrimSummary {
   id: string;
   title: string;
@@ -24,6 +30,8 @@ export interface ScrimSummary {
   teams: [string, string];
   score: [number, number];
   maps: string[];
+  /** Present on the account-only listing; legacy transports may omit it. */
+  access?: RoomAccess;
 }
 
 export interface CreateScrimResponse {

@@ -18,13 +18,38 @@ export function Home() {
   const [retry, setRetry] = useState(0);
   const [search, setSearch] = useState('');
   useEffect(() => {
-    const ctrl = new AbortController(); setError(false);
-    fetch('/api/scrims', { signal: ctrl.signal, cache: 'no-store' })
-      .then(async response => { if (!response.ok) throw new Error(); const body = await response.json(); if (!Array.isArray(body)) throw new Error(); return body as ScrimSummary[]; })
-      .then(value => { if (!ctrl.signal.aborted) setHistory(value); })
-      .catch(() => { if (!ctrl.signal.aborted) setError(true); });
-    return () => ctrl.abort();
-  }, [retry]);
+    let disposed = false;
+    let revision = 0;
+    let current: AbortController | null = null;
+    const visibleTab = () => typeof document === 'undefined' || document.visibilityState !== 'hidden';
+    async function reload(clear = false, replace = false) {
+      if (current && !replace) return;
+      current?.abort();
+      const ctrl = new AbortController(); current = ctrl;
+      const request = ++revision;
+      if (clear) setHistory(null);
+      setError(false);
+      try {
+        const response = await fetch('/api/scrims', { signal: ctrl.signal, cache: 'no-store', credentials: 'omit' });
+        if (!response.ok) throw new Error();
+        const body = await response.json();
+        if (!Array.isArray(body)) throw new Error();
+        if (!disposed && !ctrl.signal.aborted && request === revision) setHistory(body as ScrimSummary[]);
+      } catch {
+        if (!disposed && !ctrl.signal.aborted && request === revision) { setHistory(null); setError(true); }
+      } finally { if (request === revision) current = null; }
+    }
+    const active = () => { if (visibleTab()) void reload(true, true); };
+    void reload(true, true);
+    if (typeof addEventListener === 'function') addEventListener('focus', active);
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', active);
+    const timer = setInterval(() => { if (visibleTab()) void reload(); }, 10_000);
+    return () => {
+      disposed = true; revision++; current?.abort(); clearInterval(timer);
+      if (typeof removeEventListener === 'function') removeEventListener('focus', active);
+      if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', active);
+    };
+  }, [retry, auth.status, auth.email, auth.canDeleteRooms]);
   const visible = history?.filter(room => `${room.title} ${room.teams.join(' ')} ${room.maps.join(' ')}`.toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR')));
   return <main className="page public-lobby">
     <header className="public-lobby-heading"><div><span className="admin-mode-label">Para acompanhar</span><h1>Acompanhar uma scrim</h1><p className="muted">Escolha uma sala para ver os times, o veto e os resultados. Não precisa de login.</p></div><a className="button" href="/admin" onClick={internal}>{auth.status === 'admin' ? 'Área do administrador' : 'Entrar como admin'}</a></header>

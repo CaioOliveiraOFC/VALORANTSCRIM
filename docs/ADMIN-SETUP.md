@@ -4,7 +4,7 @@ Este documento é para o responsável pelo site. O material para os organizadore
 
 O login usa e-mail e senha do Supabase Auth. O site só concede acesso quando o usuário verificado possui **`app_metadata.scrim_admin: true`**. Uma conta comum, mesmo que exista no Supabase, continua sem permissão de administrar. `user_metadata` não concede essa permissão.
 
-Um administrador autorizado pode criar e administrar **todas as salas**. O espectador abre um link de sala e acompanha sem conta. Você pode criar uma conta por organizador ou uma conta compartilhada para os organizadores; com contas individuais, é possível retirar o acesso de uma pessoa sem trocar o acesso das demais.
+Um administrador autorizado pode criar, editar e mostrar/ocultar as salas. Excluir e restaurar exige a permissão adicional descrita abaixo. O espectador acompanha sem conta apenas as salas publicadas. Você pode criar uma conta por organizador ou uma conta compartilhada para os organizadores; com contas individuais, é possível retirar o acesso de uma pessoa sem trocar o acesso das demais.
 
 ## Preparar a primeira conta
 
@@ -18,7 +18,7 @@ Um administrador autorizado pode criar e administrar **todas as salas**. O espec
 
 A liberação altera apenas `raw_app_meta_data.scrim_admin` da conta indicada, preservando os outros metadados de autenticação. Não altera salas, partidas, eventos ou estatísticas. O script não cria conta nem senha e não deve ser colocado na pasta de migrações para execução automática.
 
-Não são necessárias novas tabelas ou variáveis de ambiente para esta feature. O servidor usa as configurações Supabase já existentes; a chave `SUPABASE_SERVICE_ROLE_KEY` permanece exclusivamente no servidor. Não publique senhas, tokens ou chaves nos arquivos do repositório ou no PR.
+A migração **`20261104_room_access.sql` é obrigatória**, depois de `20261016_scrims.sql` e `20261017_match_imports.sql`. Ela adiciona visibilidade e exclusão lógica, ajusta o acesso público aos eventos e preserva as salas existentes como públicas. Não há nova variável de ambiente. O servidor usa as configurações Supabase já existentes; a chave `SUPABASE_SERVICE_ROLE_KEY` permanece exclusivamente no servidor. Não publique senhas, tokens ou chaves nos arquivos do repositório ou no PR.
 
 ## Criar outro administrador
 
@@ -36,6 +36,28 @@ Execute o arquivo inteiro. Confira `administrador = false`. A conta perde as per
 
 Em uma conta compartilhada, a retirada afeta todos que usam aquela mesma conta. Para retirar apenas uma pessoa, use contas individuais.
 
+## Quem pode excluir e restaurar
+
+A conta de admin com e-mail **`caio.oliveira2014@hotmail.com` confirmado pelo Supabase Auth** é o proprietário e pode excluir/restaurar sem flag extra. Ela ainda precisa ser uma conta de admin válida. Outros administradores precisam de **`app_metadata.scrim_delete_rooms: true`**.
+
+Para liberar outro administrador, abra [room-delete-access.sql](room-delete-access.sql), informe o e-mail exato da conta, mantenha a ação `grant` e execute o arquivo inteiro. O script exige que a conta já tenha `scrim_admin: true`; ele não libera admin sozinho. Confira `scrim_delete_rooms = true`. Para retirar somente essa permissão, execute com a ação `revoke`. O restante do acesso administrativo permanece.
+
+As duas permissões ficam em `raw_app_meta_data`, expostas ao servidor como `app_metadata`. `user_metadata` não autoriza nenhuma delas.
+
+Excluir é uma operação lógica: tira a sala das listas normais e bloqueia seu acesso, mas conserva os eventos e importações. Quem tem a permissão pode restaurá-la; **a restauração sempre volta como oculta**. Mostrar para espectadores exige uma ação separada pelo olho. Retirar a flag extra não retira os poderes do proprietário confirmado.
+
+## Mostrar ou ocultar uma sala
+
+Todo admin pode usar o olho para **Mostrar para espectadores** ou ocultar uma sala. A nova sala começa oculta; o checkbox **Mostrar para espectadores** na criação permite publicá-la desde o começo. Administradores continuam vendo as salas ocultas.
+
+Com a migração e a versão atual aplicadas, uma sala oculta não aparece na lista pública. Link direto, relatório e eventos também ficam indisponíveis ao público. A exclusão lógica bloqueia a sala até ser restaurada. O histórico não é apagado.
+
+### Limite do ambiente compartilhado
+
+Preview e Production usam o mesmo Supabase neste projeto. A **API antiga de produção ignora a visibilidade**, e `service_role` tem acesso que não é filtrado pelo RLS. Portanto, aplicar a migração ou testar um novo Preview, isoladamente, não garante privacidade em todos os domínios.
+
+Use apenas dados fictícios no Preview. Antes de confiar na ocultação para dados reais, publique a versão nova em todos os domínios ativos e aposente os deployments/Previews antigos que ainda possam consultar esse banco com a chave de serviço. Preserve o histórico e evite tratar uma sala oculta no Preview como privada enquanto a API antiga continuar acessível.
+
 ## Se precisar substituir as credenciais
 
 Se o painel do seu projeto oferecer alteração direta de senha para a conta, faça a alteração por esse recurso e compartilhe a nova senha pelo canal privado dos organizadores.
@@ -48,21 +70,25 @@ Não altere `encrypted_password` por SQL nem salve senhas em scripts. Retirar a 
 
 Os IDs das salas e o histórico são preservados. O fragmento antigo `#admin=…` deixa de conceder permissão de edição: para administrar uma sala, a pessoa entra com a conta de admin. As novas salas não entregam chave de admin no navegador; o login passa a ser o caminho para organizar.
 
-Os espectadores recebem apenas o link público da sala. Uma pessoa já autenticada como admin continuará vendo seus controles ao abrir uma sala nesse navegador; o mesmo link, em uma janela privada sem login, deve abrir como espectador.
+Os espectadores recebem apenas o link público da sala. Uma pessoa já autenticada como admin continuará vendo seus controles ao abrir uma sala nesse navegador; o mesmo link, em uma janela privada sem login, só deve abrir como espectador se a sala estiver publicada.
 
 ## Conferir antes de mesclar/publicar
 
 O Preview da Vercel pode ter uma proteção de acesso própria. Esse login da Vercel é diferente do login por e-mail e senha da aplicação. Se a proteção estiver ativa, permita acesso aos participantes do teste pelo recurso de compartilhamento do projeto.
 
-Use uma sala descartável criada no Preview e faça estas verificações no ambiente hospedado:
+Aplique primeiro as três migrações, na ordem indicada. Use dados fictícios em salas descartáveis no Preview e confira:
 
-- Conta autorizada entra em `/admin`, cria uma sala e recebe os controles de admin.
-- Conta existente sem `scrim_admin: true` não recebe acesso administrativo.
-- Janela privada, sem login, vê a sala como espectador e não pode criar nem editar.
-- Um link antigo com `#admin=…` não concede acesso sem login.
-- **Sair do admin** encerra o acesso do navegador; atualizar a página continua como espectador.
-- Após retirar a permissão da conta, a API nega novas edições.
-- Sorteios, foco do admin e importação continuam funcionando para a conta autorizada; os espectadores recebem as atualizações.
-- `/guia-admin.html` abre no celular e o PDF baixa e abre fora do site.
+- O proprietário e outro admin entram em `/admin`; uma conta sem `scrim_admin: true` não recebe acesso.
+- Nova sala fica oculta por padrão; o checkbox da criação e o olho permitem mostrar/ocultar para qualquer admin.
+- Admin vê a sala oculta. Sem login, ela some da listagem e responde 404 no link, no JSON e no relatório; `SELECT` público de seus eventos não retorna linhas.
+- Publicar pelo olho libera a leitura do espectador; ocultar novamente corta as novas leituras públicas.
+- Admin comum pode editar e mostrar/ocultar, mas não pode excluir/restaurar. O proprietário pode; outro admin só pode após `grant` no script de exclusão. `user_metadata` ou a flag de exclusão sem `scrim_admin` não concedem acesso.
+- Exclusão lógica tira o acesso e as listas; restauração preserva eventos/importações e volta oculta. Verifique em uma sala de teste já importada.
+- Sem importação, o espectador publicado vê **Aguardando importação da partida para você**. O admin busca por nick/link depois da partida e importa o resultado.
+- Não existem controles manuais de round/desfazer; comandos diretos também são recusados. K/D/A só pode ser ajustado em **Corrigir estatística**, após importação da API.
+- **Sair do admin**, revogar a conta e usar um link antigo com `#admin=…` não permitem novas edições sem sessão válida.
+- Foco, sorteios e importação continuam funcionando; o guia abre no celular e o PDF baixa e abre fora do site.
+
+Esta conferência do Preview não substitui a atualização dos demais domínios ativos do ambiente compartilhado.
 
 Os testes locais simulam o Supabase Auth e não validam uma conta real do projeto. A validação positiva no Preview depende da conta criada e liberada pelos passos acima. Não é necessário usar ou alterar as scrims reais para essa conferência.

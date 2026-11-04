@@ -1,13 +1,17 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { buildMapReport, drawResultLabel, drawStatusLabel, kd, playerTotals } from '../../shared/report';
 import { TEAM_IDS, seriesScore, seriesWinner } from '../../shared/scrim';
 import { fmtDateTime } from '../util';
+import { adminFetch } from '../authFetch';
 import { StatsTable } from './MatchPanel';
 import { useRoom } from './ScrimRoom';
 
 export function ReportPanel({ scrimId }: { scrimId: string }) {
   const { state, isAdmin, act } = useRoom();
   const [note, setNote] = useState('');
+  const [downloading, setDownloading] = useState<'md' | 'json' | null>(null);
+  const [downloadError, setDownloadError] = useState('');
+  const downloadLocked = useRef(false);
   const t = (id: 'A' | 'B') => state.teams[id].name;
   const series = seriesScore(state);
   const winner = seriesWinner(state);
@@ -18,6 +22,36 @@ export function ReportPanel({ scrimId }: { scrimId: string }) {
     if (await act({ type: 'note.add', text: note })) setNote('');
   }
 
+  async function download(format: 'md' | 'json') {
+    if (downloadLocked.current) return;
+    downloadLocked.current = true; setDownloading(format); setDownloadError('');
+    let objectUrl: string | undefined;
+    let link: HTMLAnchorElement | undefined;
+    try {
+      const response = await adminFetch(`/api/scrims/${scrimId}${format === 'md' ? '/report.md' : ''}`, { cache: 'no-store' });
+      if (!response.ok) {
+        const body: unknown = await response.json().catch(() => null);
+        const message = body && typeof body === 'object' && 'error' in body && typeof body.error === 'string' ? body.error : '';
+        setDownloadError(message || 'Não foi possível baixar o arquivo. Confira seu acesso e tente novamente.');
+        return;
+      }
+      objectUrl = URL.createObjectURL(await response.blob());
+      link = document.createElement('a');
+      link.href = objectUrl; link.download = `scrim-${scrimId}.${format}`;
+      document.body.appendChild(link); link.click();
+    } catch {
+      setDownloadError('Não foi possível baixar o arquivo. Confira sua conexão e tente novamente.');
+    } finally {
+      link?.remove();
+      if (objectUrl) {
+        const pendingUrl = objectUrl;
+        // Give the browser time to start reading the file before releasing it.
+        setTimeout(() => URL.revokeObjectURL(pendingUrl), 1000);
+      }
+      downloadLocked.current = false; setDownloading(null);
+    }
+  }
+
   return (
     <div className="stack">
       <section className="card">
@@ -25,13 +59,15 @@ export function ReportPanel({ scrimId }: { scrimId: string }) {
           <h2 className="grow">
             {t('A')} {series.A} x {series.B} {t('B')} {winner ? `· vitória de ${t(winner)}` : '· em andamento'}
           </h2>
-          <a className="button" href={`/api/scrims/${scrimId}/report.md`} download>
+          <button type="button" disabled={downloading !== null} onClick={() => void download('md')}>
             Baixar relatório (.md)
-          </a>
-          <a className="button" href={`/api/scrims/${scrimId}`} download={`scrim-${scrimId}.json`}>
+          </button>
+          <button type="button" disabled={downloading !== null} onClick={() => void download('json')}>
             Exportar dados (.json)
-          </a>
+          </button>
         </div>
+        {downloading && <p className="muted small" role="status">Preparando {downloading === 'md' ? 'relatório' : 'dados'} para baixar…</p>}
+        {downloadError && <p role="alert">{downloadError}</p>}
         <p className="muted small">
           O JSON traz o log completo de eventos com horário: dá para reconstruir a scrim round a round ou cruzar com a
           gravação em vídeo.

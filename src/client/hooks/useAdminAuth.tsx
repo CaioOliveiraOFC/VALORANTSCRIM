@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { adminFetch } from '../authFetch';
 
 export type AdminAuthStatus = 'loading' | 'admin' | 'viewer' | 'error';
-interface AuthState { status: AdminAuthStatus; email?: string; }
+interface AuthState { status: AdminAuthStatus; email?: string; canDeleteRooms: boolean; }
 interface AuthContext extends AuthState {
   refresh: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
@@ -12,14 +12,14 @@ interface AuthContext extends AuthState {
 const Context = createContext<AuthContext | null>(null);
 export const ADMIN_AUTH_CHANGE = 'scrim-auth-change';
 
-async function reply(response: Response): Promise<{ authenticated?: boolean; user?: { email?: string }; error?: string }> {
+async function reply(response: Response): Promise<{ authenticated?: boolean; user?: { email?: string }; permissions?: { canDeleteRooms?: boolean }; error?: string }> {
   const value = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(typeof value.error === 'string' ? value.error : 'Não foi possível verificar o acesso. Tente novamente.');
   return value;
 }
 
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({ status: 'loading' });
+  const [state, setState] = useState<AuthState>({ status: 'loading', canDeleteRooms: false });
   const revision = useRef(0);
   const mounted = useRef(true);
   const refresh = useCallback(async () => {
@@ -27,10 +27,10 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     try {
       const body = await reply(await adminFetch('/api/admin/session', { cache: 'no-store', credentials: 'same-origin' }));
       if (mounted.current && request === revision.current) {
-        setState(body.authenticated === true ? { status: 'admin', email: body.user?.email } : { status: 'viewer' });
+        setState(body.authenticated === true ? { status: 'admin', email: body.user?.email, canDeleteRooms: body.permissions?.canDeleteRooms === true } : { status: 'viewer', canDeleteRooms: false });
       }
     } catch {
-      if (mounted.current && request === revision.current) setState({ status: 'error' });
+      if (mounted.current && request === revision.current) setState({ status: 'error', canDeleteRooms: false });
     }
   }, []);
 
@@ -41,14 +41,14 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ email: email.trim(), password }),
     }));
     if (body.authenticated !== true) throw new Error('Este acesso de administrador não está liberado. Fale com o responsável pela sala.');
-    if (mounted.current && request === revision.current) setState({ status: 'admin', email: body.user?.email ?? email.trim() });
+    if (mounted.current && request === revision.current) setState({ status: 'admin', email: body.user?.email ?? email.trim(), canDeleteRooms: body.permissions?.canDeleteRooms === true });
     dispatchEvent(new Event(ADMIN_AUTH_CHANGE));
   }, []);
 
   const logout = useCallback(async () => {
     const request = ++revision.current;
     await reply(await adminFetch('/api/admin/logout', { method: 'POST', credentials: 'same-origin' }));
-    if (mounted.current && request === revision.current) setState({ status: 'viewer' });
+    if (mounted.current && request === revision.current) setState({ status: 'viewer', canDeleteRooms: false });
     dispatchEvent(new Event(ADMIN_AUTH_CHANGE));
   }, []);
 

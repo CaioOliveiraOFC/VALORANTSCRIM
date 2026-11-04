@@ -45,7 +45,7 @@ describe('server-only admin authentication', () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ ...tokens, user: { ...user, app_metadata: {} } })).mockResolvedValueOnce(json(user));
     const { res, cookies } = response();
     const session = await loginAdmin(request({ origin: 'https://valorantscrim.vercel.app' }), res, '  ADMIN@example.com ', ' secret password ');
-    expect(session).toEqual({ userId: user.id, email: user.email });
+    expect(session).toEqual({ userId: user.id, email: user.email, canDeleteRooms: false });
     expect(JSON.stringify(session)).not.toMatch(/token|secret password|server-test-key/);
     const calls = vi.mocked(fetch).mock.calls;
     expect(calls[0]![0]).toBe('https://test.supabase.co/auth/v1/token?grant_type=password');
@@ -77,7 +77,7 @@ describe('server-only admin authentication', () => {
 
   it('checks current provider metadata on every request so removing an admin role revokes access', async () => {
     const req = request({ cookie: cookieHeader() });
-    expect(await getAdminSession(req, response().res)).toEqual({ userId: user.id, email: user.email });
+    expect(await getAdminSession(req, response().res)).toEqual({ userId: user.id, email: user.email, canDeleteRooms: false });
     vi.mocked(fetch).mockResolvedValueOnce(json({ ...user, app_metadata: {} }));
     const revoked = response();
     expect(await getAdminSession(req, revoked.res)).toBeNull();
@@ -85,12 +85,44 @@ describe('server-only admin authentication', () => {
     expect(vi.mocked(fetch).mock.calls.every(([url]) => String(url).endsWith('/user'))).toBe(true);
   });
 
+  it('grants deletion to the verified, confirmed proprietor account case-insensitively', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ ...user, email: 'Caio.Oliveira2014@Hotmail.com', email_confirmed_at: '2026-11-04T12:00:00Z' }));
+    const session = await getAdminSession(request({ cookie: cookieHeader() }), response().res);
+    expect(session).toMatchObject({ email: 'Caio.Oliveira2014@Hotmail.com', canDeleteRooms: true });
+  });
+
+  it.each([undefined, null, '', '   ', false])('does not grant automatic owner deletion without a confirmed email (%s)', async email_confirmed_at => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ ...user, email: 'caio.oliveira2014@hotmail.com', email_confirmed_at }));
+    expect(await getAdminSession(request({ cookie: cookieHeader() }), response().res)).toMatchObject({ canDeleteRooms: false });
+  });
+
+  it('grants delegated deletion only for a literal verified app_metadata boolean', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ ...user, app_metadata: { scrim_admin: true, scrim_delete_rooms: true } }));
+    expect(await getAdminSession(request({ cookie: cookieHeader() }), response().res)).toMatchObject({ canDeleteRooms: true });
+    for (const flag of ['true', 'false', false, 1, null]) {
+      vi.mocked(fetch).mockResolvedValueOnce(json({ ...user, app_metadata: { scrim_admin: true, scrim_delete_rooms: flag } }));
+      expect(await getAdminSession(request({ cookie: cookieHeader() }), response().res)).toMatchObject({ canDeleteRooms: false });
+    }
+  });
+
+  it('ignores forged deletion claims in user_metadata and requires administrator status independently', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ ...user, user_metadata: { scrim_delete_rooms: true, email_confirmed_at: '2026-11-04T12:00:00Z' } }));
+    expect(await getAdminSession(request({ cookie: cookieHeader() }), response().res)).toMatchObject({ canDeleteRooms: false });
+    for (const profile of [
+      { ...user, app_metadata: { scrim_delete_rooms: true } },
+      { ...user, email: 'caio.oliveira2014@hotmail.com', email_confirmed_at: '2026-11-04T12:00:00Z', app_metadata: {} },
+    ]) {
+      vi.mocked(fetch).mockResolvedValueOnce(json(profile));
+      expect(await getAdminSession(request({ cookie: cookieHeader() }), response().res)).toBeNull();
+    }
+  });
+
   it('refreshes an expired access token and rotates both cookies only after verifying the new user', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ message: 'expired' }, 401))
       .mockResolvedValueOnce(json({ ...tokens, access_token: 'rotated-access', refresh_token: 'rotated-refresh', expires_in: 1800 }))
       .mockResolvedValueOnce(json(user));
     const { res, cookies } = response();
-    expect(await getAdminSession(request({ cookie: cookieHeader() }), res)).toEqual({ userId: user.id, email: user.email });
+    expect(await getAdminSession(request({ cookie: cookieHeader() }), res)).toEqual({ userId: user.id, email: user.email, canDeleteRooms: false });
     expect(vi.mocked(fetch).mock.calls[1]![0]).toBe('https://test.supabase.co/auth/v1/token?grant_type=refresh_token');
     expect(JSON.parse(String(vi.mocked(fetch).mock.calls[1]![1]!.body))).toEqual({ refresh_token: refresh });
     expect(cookies()![0]).toContain('rotated-access'); expect(cookies()![0]).toContain('Max-Age=1800');
@@ -100,7 +132,7 @@ describe('server-only admin authentication', () => {
   it('can restore a session after the browser has expired the access cookie', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json(tokens)).mockResolvedValueOnce(json(user));
     const { res } = response();
-    expect(await getAdminSession(request({ cookie: cookieHeader(null, refresh) }), res)).toEqual({ userId: user.id, email: user.email });
+    expect(await getAdminSession(request({ cookie: cookieHeader(null, refresh) }), res)).toEqual({ userId: user.id, email: user.email, canDeleteRooms: false });
     expect(vi.mocked(fetch).mock.calls[0]![0]).toContain('grant_type=refresh_token');
   });
 

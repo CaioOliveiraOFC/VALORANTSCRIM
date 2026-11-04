@@ -44,7 +44,7 @@ const tabForPhase = (phase: ScrimState['phase']): Tab =>
   ({ setup: 'teams', veto: 'veto', live: 'match', finished: 'report' } as const)[phase];
 
 export function ScrimRoom({ scrimId }: { scrimId: string }) {
-  const { state, events, role, status, presence, send, importRequest, roomRequest, serverOffset } = useScrim(scrimId);
+  const { state, events, access, role, status, presence, send, importRequest, roomRequest, serverOffset } = useScrim(scrimId);
   const [tab, setTab] = useState<Tab | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const isAdmin = role === 'admin';
@@ -165,7 +165,9 @@ export function ScrimRoom({ scrimId }: { scrimId: string }) {
     return (
       <main className="page">
         <div className="card">
-          <h2>Scrim não encontrada</h2>
+          <h2>Sala indisponível</h2>
+          <p className="muted">Confira o link ou entre como administrador para acessar as salas que você organiza.</p>
+          <a className="button" href={`/admin?returnTo=${encodeURIComponent(`/s/${scrimId}`)}`} onClick={event => { event.preventDefault(); navigate(`/admin?returnTo=${encodeURIComponent(`/s/${scrimId}`)}`); }}>Entrar como admin</a>
           <button onClick={() => navigate('/')}>Voltar</button>
         </div>
       </main>
@@ -221,12 +223,13 @@ export function ScrimRoom({ scrimId }: { scrimId: string }) {
           </div>
           <div className="room-meta">
             <span className={`status ${status}`} title="Conexão em tempo real">
-              {status === 'online' ? 'Ao vivo' : status === 'connecting' ? 'Conectando…' : 'Reconectando…'}
+              {status === 'online' ? (access?.isPublic === false ? 'Sincronizada' : 'Ao vivo') : status === 'connecting' ? 'Conectando…' : 'Reconectando…'}
             </span>
             <span className="muted">
               👁 {presence.viewers} {presence.viewers === 1 ? 'espectador' : 'espectadores'}
             </span>
             <span className={`badge ${isAdmin ? 'admin' : ''}`}>{isAdmin ? 'Admin' : 'Espectador'}</span>
+            {isAdmin && access?.isPublic === false && <span className="badge">Oculta para espectadores</span>}
             <button
               onClick={async () => setToast((await copyText(spectatorLink)) ? 'Link de espectador copiado.' : spectatorLink)}
             >

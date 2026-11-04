@@ -7,7 +7,7 @@ import serve from '../../api/index.js';
 import { ADMIN_ACCESS_COOKIE, ADMIN_REFRESH_COOKIE } from './adminAuth.js';
 import { applyEvent, initialState, type ScrimEvent, type ScrimState } from '../shared/scrim.js';
 
-type Row = { id: string; admin_key_hash: string; state: ScrimState; version: number; events: ScrimEvent[] };
+type Row = { id: string; admin_key_hash: string; state: ScrimState; version: number; events: ScrimEvent[]; is_public: boolean; deleted_at: number | null; access_version: number };
 const rows = new Map<string, Row>();
 let port: number;
 let server: http.Server;
@@ -22,6 +22,13 @@ const ADMIN_EMAIL = 'organizador@example.com';
 const TEST_PASSWORD = 'test-password-not-real';
 const REFRESH_TOKEN = 'refresh-test-private';
 let adminEnabled = true;
+let adminCanDelete = false;
+let accessConflict = false;
+let missingAccessColumns = false;
+let missingAccessRpc = false;
+let deleteBeforeAppend = false;
+const accessMutations: Record<string, unknown>[] = [];
+const ADMIN_ID = '11111111-1111-4111-8111-111111111111';
 
 function call(path: string, method = 'GET', body?: unknown, headers: Record<string, string> = {}): Promise<{status: number; body: any; text: string; headers: http.IncomingHttpHeaders}> {
   return new Promise((resolve, reject) => {
@@ -46,7 +53,7 @@ beforeAll(async () => {
 });
 afterAll(async () => { await new Promise<void>((resolve,reject) => server.close((e) => e ? reject(e) : resolve())); });
 beforeEach(() => {
-  rows.clear(); dbCalls.length=0; authCalls.length=0; adminEnabled=true; casConflict=false; lookupAllowed=true; providerCalls=0;
+  rows.clear(); dbCalls.length=0; authCalls.length=0; adminEnabled=true; adminCanDelete=false; accessConflict=false; missingAccessColumns=false; missingAccessRpc=false; deleteBeforeAppend=false; accessMutations.length=0; casConflict=false; lookupAllowed=true; providerCalls=0;
   vi.stubEnv('HENRIK_API_KEY','provider-test-key');
   vi.stubEnv('SUPABASE_URL','https://test.supabase.co');
   vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY','server-test-key');
@@ -62,8 +69,8 @@ beforeEach(() => {
       authCalls.push(u.pathname + u.search);
       const payload = options.body ? JSON.parse(String(options.body)) : {};
       const token = new Headers(options.headers).get('authorization')?.replace(/^Bearer /, '');
-      const user = (isAdmin: boolean) => ({ id: isAdmin ? 'admin-user' : 'viewer-user', email: isAdmin ? ADMIN_EMAIL : 'espectador@example.com',
-        app_metadata: { scrim_admin: isAdmin && adminEnabled }, user_metadata: { scrim_admin: true } });
+      const user = (isAdmin: boolean) => ({ id: isAdmin ? ADMIN_ID : '22222222-2222-4222-8222-222222222222', email: isAdmin ? ADMIN_EMAIL : 'espectador@example.com',
+        app_metadata: { scrim_admin: isAdmin && adminEnabled, scrim_delete_rooms: isAdmin && adminCanDelete }, user_metadata: { scrim_admin: true, scrim_delete_rooms: true } });
       if (u.pathname.endsWith('/token')) {
         if (u.searchParams.get('grant_type') === 'password' && payload.password === TEST_PASSWORD && [ADMIN_EMAIL, 'espectador@example.com'].includes(payload.email)) {
           const isAdmin = payload.email === ADMIN_EMAIL;
@@ -82,17 +89,42 @@ beforeEach(() => {
     dbCalls.push(u.pathname+u.search);
     const payload=options.body ? JSON.parse(String(options.body)) : null;
     const ok=(body:unknown)=>new Response(body===null ? null : JSON.stringify(body),{status:body===null?204:200});
-    if (u.pathname.endsWith('/rpc/create_scrim')) {
-      rows.set(payload.p_id,{id:payload.p_id,admin_key_hash:payload.p_key_hash,state:payload.p_state,version:1,events:[payload.p_event]});return ok(null);
+    if (u.pathname.endsWith('/scrims') && missingAccessColumns && u.searchParams.get('select')?.includes('is_public')) return new Response(JSON.stringify({ code: '42703', message: 'column is_public does not exist' }), { status: 400 });
+    if (u.pathname.endsWith('/rpc/create_scrim_with_access')) {
+      if (missingAccessRpc) return new Response(JSON.stringify({ code: 'PGRST202', message: 'RPC missing' }), { status: 404 });
+      rows.set(payload.p_id,{id:payload.p_id,admin_key_hash:payload.p_key_hash,state:payload.p_state,version:1,events:[payload.p_event],is_public:payload.p_is_public,deleted_at:null,access_version:1});return ok(null);
+    }
+    if (u.pathname.endsWith('/rpc/manage_scrim_access')) {
+      if (missingAccessRpc) return new Response(JSON.stringify({ code: 'PGRST202', message: 'RPC missing' }), { status: 404 });
+      accessMutations.push(payload);
+      const row=rows.get(payload.p_id);
+      if (!row || accessConflict || row.access_version!==payload.p_expected_access_version ||
+          (payload.p_action==='restore' ? row.deleted_at===null : row.deleted_at!==null)) return new Response(JSON.stringify({ message: 'STALE_OR_FORBIDDEN' }), { status: 400 });
+      row.is_public=payload.p_action==='show';
+      if (payload.p_action==='show') row.is_public=true;
+      else if (payload.p_action==='hide') row.is_public=false;
+      else if (payload.p_action==='delete') row.deleted_at=payload.p_at;
+      else if (payload.p_action==='restore') row.deleted_at=null;
+      else return new Response(JSON.stringify({ message: 'INVALID_ACCESS' }), { status: 400 });
+      row.access_version++;
+      return ok([{ is_public:row.is_public,deleted_at:row.deleted_at,access_version:row.access_version }]);
     }
     if (u.pathname.endsWith('/rpc/claim_match_lookup')) return ok(lookupAllowed);
     if (u.pathname.endsWith('/rpc/append_scrim_event') || u.pathname.endsWith('/rpc/import_match_result')) {
       const r=rows.get(payload.p_id)!;
+      if(deleteBeforeAppend) r.deleted_at=Date.now();
+      if(r.deleted_at!==null) return new Response(JSON.stringify({message:'STALE_OR_FORBIDDEN'}),{status:400});
       if(casConflict || r.version!==payload.p_expected_version || r.admin_key_hash!==payload.p_key_hash) return new Response(JSON.stringify({message:'STALE_OR_FORBIDDEN'}),{status:400});
       r.state=payload.p_state;r.version++;r.events.push(payload.p_event);return ok(null);
     }
     const id=u.searchParams.get('id')?.slice(3) ?? u.searchParams.get('scrim_id')?.slice(3);
-    if(u.pathname.endsWith('/scrims')) return ok(id ? (rows.has(id)?[rows.get(id)]:[]) : [...rows.values()]);
+    if(u.pathname.endsWith('/scrims')) {
+      let result = id ? (rows.has(id)?[rows.get(id)!]:[]) : [...rows.values()];
+      if (u.searchParams.get('is_public')==='eq.true') result=result.filter(row=>row.is_public);
+      if (u.searchParams.get('deleted_at')==='is.null') result=result.filter(row=>row.deleted_at===null);
+      if (u.searchParams.get('deleted_at')==='not.is.null') result=result.filter(row=>row.deleted_at!==null);
+      return ok(result.slice(0,Number(u.searchParams.get('limit')??result.length)));
+    }
     if(u.pathname.endsWith('/scrim_events')) {
       const conditions=u.searchParams.getAll('seq');
       const after=Number(conditions.find(x=>x.startsWith('gt.'))?.slice(3)??0);
@@ -104,8 +136,8 @@ beforeEach(() => {
   }));
 });
 afterEach(()=>{vi.unstubAllGlobals();vi.unstubAllEnvs();vi.restoreAllMocks();});
-async function create() {
- const r=await adminCall('/api/scrims','POST',{title:'Cloud test',format:'bo3'});
+async function create(isPublic = true) {
+ const r=await adminCall('/api/scrims','POST',{title:'Cloud test',format:'bo3',isPublic});
  expect(r.status).toBe(201);expect(Object.keys(r.body)).toEqual(['id']);
  return { id: r.body.id as string };
 }
@@ -398,13 +430,13 @@ describe('administrator account HTTP access', () => {
     expect((await viewerCall(`/api/scrims/${id}/report.md`)).status).toBe(200);
     expect((await viewerCall('/api/scrims', 'POST', { title: 'Not allowed', format: 'bo3' })).status).toBe(403);
     expect(dbCalls.filter(path => path.includes('/rpc/'))).toHaveLength(writes);
-    expect((await viewerCall('/api/admin/session')).body).toEqual({ authenticated: false });
+    expect((await viewerCall('/api/admin/session')).body).toEqual({ authenticated: false, permissions: { canDeleteRooms: false } });
   });
 
   it('logs in through Supabase, returns no tokens and uses its HttpOnly session to create and edit rooms', async () => {
     const result = await viewerCall('/api/admin/login', 'POST', { email: ADMIN_EMAIL, password: TEST_PASSWORD });
     expect(result.status).toBe(200);
-    expect(result.body).toEqual({ authenticated: true, user: { email: ADMIN_EMAIL } });
+    expect(result.body).toEqual({ authenticated: true, user: { email: ADMIN_EMAIL }, permissions: { canDeleteRooms: false } });
     for (const secret of [TEST_PASSWORD, ADMIN_TOKEN, REFRESH_TOKEN, 'server-test-key']) expect(result.text).not.toContain(secret);
     const cookies = result.headers['set-cookie'] ?? [];
     expect(cookies.some(cookie => cookie.startsWith(`${ADMIN_ACCESS_COOKIE}=`))).toBe(true);
@@ -412,14 +444,14 @@ describe('administrator account HTTP access', () => {
     expect(cookies.every(cookie => /HttpOnly/i.test(cookie) && /SameSite=Lax/i.test(cookie))).toBe(true);
     const cookie = cookies.map(value => value.split(';')[0]).join('; ');
     const session = await call('/api/admin/session', 'GET', undefined, { cookie });
-    expect(session.body).toEqual({ authenticated: true, user: { email: ADMIN_EMAIL } });
+    expect(session.body).toEqual({ authenticated: true, user: { email: ADMIN_EMAIL }, permissions: { canDeleteRooms: false } });
     const created = await call('/api/scrims', 'POST', { title: 'Account room', format: 'bo1' }, { cookie });
     expect(created.status).toBe(201);expect(Object.keys(created.body)).toEqual(['id']);
     expect((await call(`/api/scrims/${created.body.id}/command`, 'POST', { command: { type: 'team.rename', team: 'A', name: 'Account admins' } }, { cookie })).status).toBe(200);
     expect(authCalls).toContain('/auth/v1/token?grant_type=password');
     expect(authCalls).toContain('/auth/v1/user');
     const logout = await call('/api/admin/logout', 'POST', undefined, { cookie });
-    expect(logout.body).toEqual({ authenticated: false });
+    expect(logout.body).toEqual({ authenticated: false, permissions: { canDeleteRooms: false } });
     expect(logout.headers['set-cookie']?.every(value => /Max-Age=0/i.test(value))).toBe(true);
     expect(authCalls.some(path => path.startsWith('/auth/v1/logout'))).toBe(true);
   });
@@ -473,5 +505,174 @@ describe('administrator account HTTP access', () => {
     expect((await viewerCall('/api/admin/session', 'POST')).status).toBe(405);
     expect((await viewerCall('/api/admin/logout', 'GET')).status).toBe(405);
     expect((await viewerCall('/api/admin/login', 'POST', { email: ADMIN_EMAIL, password: TEST_PASSWORD, role: 'admin' })).status).toBe(400);
+  });
+});
+
+describe('room visibility and reversible removal', () => {
+  it('creates hidden rooms by default and validates explicit initial visibility atomically', async () => {
+    const created = await adminCall('/api/scrims', 'POST', { title: 'Internal room', format: 'bo3' });
+    expect(created.status).toBe(201);
+    const row = rows.get(created.body.id)!;
+    expect(row.is_public).toBe(false);expect(row.deleted_at).toBeNull();expect(row.access_version).toBe(1);
+    expect(row.state).not.toHaveProperty('isPublic');expect(row.events).toHaveLength(1);
+    expect(dbCalls.some(path => path.endsWith('/rpc/create_scrim_with_access'))).toBe(true);
+    expect((await viewerCall('/api/scrims')).body).toEqual([]);
+    for (const isPublic of ['true', 1, null]) expect((await adminCall('/api/scrims', 'POST', { title: 'Invalid', format: 'bo3', isPublic })).status).toBe(400);
+    expect(rows.size).toBe(1);
+    const publicRoom = await create(true);
+    expect((await viewerCall('/api/scrims')).body.map((room: any) => room.id)).toEqual([publicRoom.id]);
+  });
+
+  it('filters public rooms in SQL before the limit without consulting account credentials', async () => {
+    const { id } = await create(true);
+    const source = rows.get(id)!;
+    for (let index = 0; index < 510; index++) rows.set(`hidden${index}`, { ...source, id: `hidden${index}`, is_public: false, state: { ...source.state, id: `hidden${index}` } });
+    rows.set('deletedroom', { ...source, id: 'deletedroom', deleted_at: Date.now(), state: { ...source.state, id: 'deletedroom' } });
+    authCalls.length = 0;
+    const result = await adminCall('/api/scrims?deleted=true');
+    expect(result.body.map((room: any) => room.id)).toEqual([id]);
+    expect(authCalls).toHaveLength(0);
+    const query = new URL(dbCalls.at(-1)!, 'https://test.supabase.co');
+    expect(query.searchParams.get('is_public')).toBe('eq.true');expect(query.searchParams.get('deleted_at')).toBe('is.null');expect(query.searchParams.get('limit')).toBe('500');
+    expect(result.body[0]).not.toHaveProperty('access');
+  });
+
+  it('lets administrators list active hidden rooms while protecting the administrative and deleted scopes', async () => {
+    const visible = await create(true), hidden = await create(false);
+    expect((await viewerCall('/api/scrims?scope=admin')).status).toBe(403);
+    const list = await adminCall('/api/scrims?scope=admin');
+    expect(list.status).toBe(200);
+    expect(list.body.find((room: any) => room.id === hidden.id).access).toEqual({ isPublic: false, deletedAt: null, accessVersion: 1 });
+    expect(list.body.find((room: any) => room.id === visible.id).access.isPublic).toBe(true);
+    expect((await adminCall('/api/scrims?scope=admin&deleted=true')).status).toBe(403);
+    adminCanDelete = true;
+    expect((await adminCall('/api/scrims?scope=admin&deleted=true')).body).toEqual([]);
+  });
+
+  it('does not expose private titles or history through any public room-read route', async () => {
+    const { id } = await create(false);
+    rows.get(id)!.state.title = 'Confidential title';
+    for (const [path, method] of [
+      [`/api/scrims/${id}`, 'GET'], [`/api/scrims/${id}/report.md`, 'GET'],
+      [`/api/scrims/${id}/access`, 'GET'], [`/api/scrims/${id}/session`, 'POST'],
+    ]) {
+      const result = await viewerCall(path!, method!);
+      expect(result.status).toBe(404);expect(result.body).toEqual({ error: 'Scrim não encontrada.' });expect(result.text).not.toContain('Confidential');
+    }
+    const snapshot = await adminCall(`/api/scrims/${id}`);
+    expect(snapshot.body.access).toEqual({ isPublic: false, deletedAt: null, accessVersion: 1 });expect(snapshot.body.events).toHaveLength(1);
+    expect((await adminCall(`/api/scrims/${id}/report.md`)).status).toBe(200);
+    expect((await adminCall(`/api/scrims/${id}/session`, 'POST')).body).toMatchObject({ role: 'admin', access: snapshot.body.access });
+  });
+
+  it('serves lightweight access polling without state, history or duplicate authentication', async () => {
+    const { id } = await create(true);
+    dbCalls.length = 0;authCalls.length = 0;
+    const result = await adminCall(`/api/index?route=scrims/${id}/access`);
+    expect(result.status).toBe(200);expect(result.body).toMatchObject({ role: 'admin', access: { isPublic: true, deletedAt: null, accessVersion: 1 } });
+    expect(result.body.serverNow).toEqual(expect.any(Number));expect(result.body).not.toHaveProperty('state');expect(result.body).not.toHaveProperty('events');
+    expect(dbCalls).toHaveLength(1);
+    expect(new URL(dbCalls[0]!, 'https://test.supabase.co').searchParams.get('select')).toBe('id,is_public,deleted_at,access_version');
+    expect(authCalls.filter(path => path === '/auth/v1/user')).toHaveLength(1);
+    authCalls.length = 0;
+    expect((await adminCall(`/api/scrims/${id}/command`, 'POST', { command: { type: 'note.add', text: 'One authorization' } })).status).toBe(200);
+    expect(authCalls.filter(path => path === '/auth/v1/user')).toHaveLength(1);
+  });
+
+  it('changes visibility with an independent CAS version and no gameplay events', async () => {
+    const { id } = await create(true);const row = rows.get(id)!;
+    const history = structuredClone(row.events), version = row.version;
+    const hidden = await adminCall(`/api/scrims/${id}/access`, 'POST', { action: 'hide', expectedAccessVersion: 1 });
+    expect(hidden.body).toEqual({ access: { isPublic: false, deletedAt: null, accessVersion: 2 } });
+    expect((await viewerCall(`/api/scrims/${id}/access`)).status).toBe(404);
+    const shown = await adminCall(`/api/scrims/${id}/access`, 'POST', { action: 'show', expectedAccessVersion: 2 });
+    expect(shown.body.access).toEqual({ isPublic: true, deletedAt: null, accessVersion: 3 });
+    expect((await viewerCall(`/api/scrims/${id}`)).status).toBe(200);
+    expect(row.version).toBe(version);expect(row.events).toEqual(history);
+    expect(accessMutations[0]).toMatchObject({ p_id: id, p_expected_access_version: 1, p_action: 'hide', p_actor_id: ADMIN_ID });
+    expect(accessMutations[0]!.p_at).toEqual(expect.any(Number));
+    expect((await adminCall(`/api/scrims/${id}/access`, 'POST', { action: 'show', expectedAccessVersion: 1 })).status).toBe(409);
+    expect(row.access_version).toBe(3);
+  });
+
+  it('requires a verified removal capability and restores removed rooms as hidden', async () => {
+    const { id } = await create(true);const row = rows.get(id)!;
+    expect((await adminCall('/api/admin/session')).body.permissions).toEqual({ canDeleteRooms: false });
+    expect((await adminCall(`/api/scrims/${id}/access`, 'POST', { action: 'delete', expectedAccessVersion: 1 })).status).toBe(403);
+    expect((await adminCall(`/api/scrims/${id}/access`, 'POST', { action: 'delete', expectedAccessVersion: 1, canDeleteRooms: true })).status).toBe(400);
+    expect(accessMutations).toHaveLength(0);expect(row.deleted_at).toBeNull();
+    adminCanDelete = true;
+    expect((await adminCall('/api/admin/session')).body.permissions).toEqual({ canDeleteRooms: true });
+    const removed = await adminCall(`/api/scrims/${id}/access`, 'POST', { action: 'delete', expectedAccessVersion: 1 });
+    expect(removed.status).toBe(200);expect(removed.body.access.deletedAt).toEqual(expect.any(Number));expect(removed.body.access.accessVersion).toBe(2);
+    for (const [path, method, body] of [
+      [`/api/scrims/${id}`, 'GET', undefined], [`/api/scrims/${id}/report.md`, 'GET', undefined],
+      [`/api/scrims/${id}/access`, 'GET', undefined], [`/api/scrims/${id}/session`, 'POST', {}],
+      [`/api/scrims/${id}/command`, 'POST', { command: { type: 'note.add', text: 'Removed' } }],
+      [`/api/scrims/${id}/imports`, 'POST', { action: 'search', region: 'br', riotId: 'Test#TAG' }],
+      [`/api/scrims/${id}/tools`, 'POST', { action: 'focus', target: { tab: 'teams', area: 'overview' } }],
+    ] as const) expect((await adminCall(path, method, body)).status).toBe(404);
+    expect(providerCalls).toBe(0);
+    expect((await adminCall('/api/scrims?scope=admin')).body).toEqual([]);expect((await viewerCall('/api/scrims')).body).toEqual([]);
+    const trash = await adminCall('/api/scrims?scope=admin&deleted=true');expect(trash.body[0].id).toBe(id);expect(trash.body[0].access.deletedAt).toBe(row.deleted_at);
+    adminCanDelete = false;
+    expect((await adminCall(`/api/scrims/${id}/access`, 'POST', { action: 'restore', expectedAccessVersion: 2 })).status).toBe(403);
+    adminCanDelete = true;
+    const restored = await adminCall(`/api/scrims/${id}/access`, 'POST', { action: 'restore', expectedAccessVersion: 2 });
+    expect(restored.body.access).toEqual({ isPublic: false, deletedAt: null, accessVersion: 3 });
+    expect((await viewerCall(`/api/scrims/${id}`)).status).toBe(404);expect((await adminCall(`/api/scrims/${id}`)).status).toBe(200);
+    expect(row.events).toHaveLength(1);expect(row.version).toBe(1);
+  });
+
+  it('protects metadata writes from spectators, CSRF, forged fields and concurrent changes', async () => {
+    const { id } = await create(true);const row = rows.get(id)!;
+    expect((await viewerCall(`/api/scrims/${id}/access`, 'POST', { action: 'hide', expectedAccessVersion: 1 })).status).toBe(403);
+    expect((await call(`/api/scrims/${id}/access`, 'POST', { action: 'hide', expectedAccessVersion: 1 }, { cookie: `${ADMIN_ACCESS_COOKIE}=${ADMIN_TOKEN}`, origin: 'https://untrusted.example' })).status).toBe(403);
+    for (const body of [{ action: 'hide', expectedAccessVersion: '1' }, { action: 'hide', expectedAccessVersion: Number.MAX_SAFE_INTEGER }, { action: 'hide', expectedAccessVersion: 1, p_actor_id: ADMIN_ID }, { action: 'unknown', expectedAccessVersion: 1 }]) expect((await adminCall(`/api/scrims/${id}/access`, 'POST', body)).status).toBe(400);
+    expect(accessMutations).toHaveLength(0);
+    accessConflict = true;
+    expect((await adminCall(`/api/scrims/${id}/access`, 'POST', { action: 'hide', expectedAccessVersion: 1 })).status).toBe(409);
+    expect(row.is_public).toBe(true);expect(row.access_version).toBe(1);
+    accessConflict = false;
+    const simultaneous = await Promise.all(['hide', 'show'].map(action => adminCall(`/api/scrims/${id}/access`, 'POST', { action, expectedAccessVersion: 1 })));
+    expect(simultaneous.map(result => result.status).sort()).toEqual([200, 409]);expect(row.access_version).toBe(2);
+  });
+
+  it('fails closed with an actionable response when access columns or RPCs are missing', async () => {
+    const { id } = await create(true);const row = rows.get(id)!;
+    missingAccessColumns = true;
+    for (const path of ['/api/health', '/api/scrims', `/api/scrims/${id}`, `/api/scrims/${id}/access`, `/api/scrims/${id}/report.md`]) {
+      const result = await adminCall(path);expect(result.status).toBe(503);expect(result.text).toContain('20261104_room_access.sql');expect(result.body).not.toHaveProperty('state');
+    }
+    missingAccessColumns = false;missingAccessRpc = true;
+    expect((await adminCall('/api/scrims', 'POST', { title: 'Unavailable', format: 'bo3' })).status).toBe(503);
+    expect(rows.size).toBe(1);
+    expect((await adminCall(`/api/scrims/${id}/access`, 'POST', { action: 'hide', expectedAccessVersion: 1 })).status).toBe(503);
+    expect(row.is_public).toBe(true);expect(row.access_version).toBe(1);
+  });
+
+  it('rejects manual rounds and pre-import statistics while allowing explicit corrections after API import', async () => {
+    const { id } = await create(true);const row = rows.get(id)!;const ready = readyScrim();
+    row.state = { ...ready.state, id };row.version = ready.state.version;row.events = ready.events.map(event => event.type === 'scrim.create' ? { ...event, id } : event);
+    const version = row.version;
+    for (const command of [
+      { type: 'round.win', team: 'A' }, { type: 'round.undo' },
+      { type: 'stats.set', mapIndex: 0, playerId: 'p0', line: { kills: 4, deaths: 1, assists: 3 } },
+    ]) expect((await adminCall(`/api/scrims/${id}/command`, 'POST', { command })).status).toBe(400);
+    expect(row.version).toBe(version);
+    const imported = await adminCall(`/api/scrims/${id}/imports`, 'POST', { action: 'confirm', region: 'br', matchId: sampleMatch().id, mapIndex: 0, redTeam: 'A', links: sampleLinks(), expectedVersion: version });
+    expect(imported.status).toBe(200);
+    const source = structuredClone(row.state.maps[0]!.source), rounds = structuredClone(row.state.maps[0]!.rounds);
+    const corrected = await adminCall(`/api/scrims/${id}/command`, 'POST', { command: { type: 'stats.set', mapIndex: 0, playerId: 'p0', line: { kills: 20, deaths: 2, assists: 1 } } });
+    expect(corrected.status).toBe(200);expect(row.state.maps[0]!.stats.p0).toMatchObject({ kills: 20, deaths: 2, assists: 1, manualCorrection: true });
+    expect(row.state.maps[0]!.source).toEqual(source);expect(row.state.maps[0]!.rounds).toEqual(rounds);
+    for (const command of [{ type: 'round.win', team: 'B' }, { type: 'round.undo' }, { type: 'stats.set', mapIndex: '0', playerId: 'p0', line: { kills: 1, deaths: 1, assists: 1 } }]) expect((await adminCall(`/api/scrims/${id}/command`, 'POST', { command })).status).toBe(400);
+  });
+
+  it('does not append a gameplay event if removal wins the database race', async () => {
+    const { id } = await create(true);const row = rows.get(id)!;const version = row.version;
+    deleteBeforeAppend = true;
+    expect((await adminCall(`/api/scrims/${id}/command`, 'POST', { command: { type: 'note.add', text: 'Too late' } })).status).toBe(409);
+    expect(row.deleted_at).not.toBeNull();expect(row.version).toBe(version);expect(row.events).toHaveLength(1);
   });
 });
