@@ -1,3 +1,9 @@
+-- LEGACY: uso exclusivo da versão anterior à migração 20261105_super_admin.sql.
+-- Depois dessa migração, a política privada no banco é a autoridade de acesso.
+-- Alterar app_metadata por este script não cria/revoga as permissões da versão nova.
+-- Use /admin/management com a conta do Caio para criar, suspender e editar admins.
+-- Mantido sem alteração de comportamento para referência/bootstrap da versão antiga.
+
 -- Permissão de excluir/restaurar salas no VALORANT Scrims.
 -- Execute no SQL Editor do MESMO Supabase usado pelo site.
 -- A conta já deve ter app_metadata.scrim_admin = true.

@@ -7,7 +7,8 @@ import { useRoom } from './ScrimRoom';
 const KIND_LABEL: Record<VetoStepDef['kind'], string> = { ban: 'Ban', pick: 'Pick', side: 'Lado', decider: 'Decider' };
 
 export function VetoPanel() {
-  const { state, isAdmin, act } = useRoom();
+  const { state, can, act } = useRoom();
+  const canVeto = can('manageVeto');
 
   if (state.phase === 'setup') {
     return <p className="card muted">O veto começa quando o admin fechar os times.</p>;
@@ -17,7 +18,7 @@ export function VetoPanel() {
   const step = currentVetoStep(state);
   const free = new Set(availableMaps(state));
   const lastFor = new Map(state.veto.filter((v) => v.kind !== 'side').map((v) => [v.mapId, v]));
-  const canChooseMap = isAdmin && step && (step.kind === 'ban' || step.kind === 'pick');
+  const canChooseMap = canVeto && step && (step.kind === 'ban' || step.kind === 'pick');
 
   const cardState = (id: MapId): MapCardState => {
     const v = lastFor.get(id);
@@ -48,7 +49,7 @@ export function VetoPanel() {
         ) : (
           <strong>Veto concluído</strong>
         )}
-        {isAdmin && (
+        {canVeto && (
           <span className="row push">
             <button onClick={() => act({ type: 'veto.undo' })} disabled={state.veto.length === 0}>
               Desfazer
@@ -60,7 +61,7 @@ export function VetoPanel() {
         )}
       </section>
 
-      {isAdmin && step?.kind === 'side' && (
+      {canVeto && step?.kind === 'side' && (
         <div className="row side-choice">
           {(['atk', 'def'] as Side[]).map((side) => (
             <button key={side} className={`primary btn-${side}`} onClick={() => act({ type: 'veto.side', side })}>

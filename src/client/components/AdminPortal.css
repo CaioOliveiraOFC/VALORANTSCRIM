@@ -45,6 +45,7 @@
 .admin-help > p { margin-top: 27px; max-width: 40ch; font-size: 12px; line-height: 1.7; color: #a4b2b6; }
 .admin-form-error { font-size: 12px; line-height: 1.6; color: #ffabb2; background: #3b222c; border: 1px solid #73424f; border-radius: 7px; padding: 12px 13px; margin: 0; overflow-wrap: anywhere; }
 .admin-dashboard-grid { display: grid; grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr); gap: 24px; align-items: start; }
+.admin-dashboard-grid.is-list-only { grid-template-columns: minmax(0, 1fr); }
 .admin-create-form { display: grid; gap: 19px; padding: 24px; position: sticky; top: 24px; }
 .admin-create-form > h2 { font-size: 21px; margin: 0; }
 .admin-create-form > .small { color: #aebbbe; font-size: 12px; line-height: 1.7; margin: -7px 0 0; }

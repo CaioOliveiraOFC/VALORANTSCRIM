@@ -89,10 +89,35 @@ it('leaves a denied login as a spectator and lets a failed session check be retr
 it('takes deletion permission only from the server and resets it when the session changes', async () => {
   let permission: unknown = undefined;
   let authenticated = true;
-  vi.stubGlobal('fetch', vi.fn(async () => response({ authenticated, user: { email: 'owner@example.test' }, permissions: { canDeleteRooms: permission } })));
+  vi.stubGlobal('fetch', vi.fn(async () => response({ authenticated, user: { email: 'owner@example.test' }, permissions: { deleteRooms: permission } })));
   await mount(); expect(auth.canDeleteRooms).toBe(false);
   permission = true; await act(async () => { await auth.refresh(); }); expect(auth.canDeleteRooms).toBe(true);
   permission = 'true'; await act(async () => { await auth.refresh(); }); expect(auth.canDeleteRooms).toBe(false);
   permission = true; await act(async () => { await auth.refresh(); }); expect(auth.canDeleteRooms).toBe(true);
   authenticated = false; await act(async () => { await auth.refresh(); }); expect(auth.canDeleteRooms).toBe(false); expect(auth.status).toBe('viewer');
+});
+
+it('uses scoped capability booleans and never infers super admin from an email or a text flag', async () => {
+  let isSuperAdmin: unknown = false;
+  let authenticated = true;
+  vi.stubGlobal('fetch', vi.fn(async () => response({ authenticated, user: { email: 'caio.oliveira2014@hotmail.com' }, isSuperAdmin, permissions: { createRooms: true, correctStats: false, canDeleteRooms: true } })));
+  await mount();
+  expect(auth.isSuperAdmin).toBe(false); expect(auth.can('createRooms')).toBe(true);
+  expect(auth.can('correctStats')).toBe(false); expect(auth.canDeleteRooms).toBe(false);
+  isSuperAdmin = 'true'; await act(async () => { await auth.refresh(); }); expect(auth.isSuperAdmin).toBe(false);
+  isSuperAdmin = true; await act(async () => { await auth.refresh(); });
+  expect(auth.isSuperAdmin).toBe(true); expect(auth.can('correctStats')).toBe(true); expect(auth.canDeleteRooms).toBe(true);
+  authenticated = false; await act(async () => { await auth.refresh(); });
+  expect(auth.isSuperAdmin).toBe(false); expect(auth.can('createRooms')).toBe(false); expect(auth.canDeleteRooms).toBe(false);
+});
+
+it('clears administrative capabilities if checking the session fails', async () => {
+  let unavailable = false;
+  vi.stubGlobal('fetch', vi.fn(async () => {
+    if (unavailable) throw new Error('network');
+    return response({ authenticated: true, permissions: { createRooms: true } });
+  }));
+  await mount(); expect(auth.can('createRooms')).toBe(true);
+  unavailable = true; await act(async () => { await auth.refresh(); });
+  expect(auth.status).toBe('error'); expect(auth.can('createRooms')).toBe(false); expect(auth.isSuperAdmin).toBe(false);
 });

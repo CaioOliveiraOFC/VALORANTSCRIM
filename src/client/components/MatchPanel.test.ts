@@ -1,3 +1,4 @@
+import { presetPermissions } from '../../shared/adminPermissions';
 import { createElement } from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -10,7 +11,7 @@ import { MatchPanel } from './MatchPanel';
 
 let renderer: ReactTestRenderer | undefined;
 beforeEach(() => {
-  mocks.room = { state: readyScrim().state, isAdmin: true, act: vi.fn().mockResolvedValue(true), importRequest: vi.fn() };
+  mocks.room = { state: readyScrim().state, isAdmin: true, permissions: presetPermissions('full'), can: (key: string) => mocks.room.isAdmin && mocks.room.permissions[key] === true, act: vi.fn().mockResolvedValue(true), importRequest: vi.fn() };
 });
 afterEach(() => { if (renderer) act(() => renderer!.unmount()); renderer = undefined; });
 function text(node: ReactTestInstance): string { return node.children.map(child => typeof child === 'string' ? child : text(child)).join(''); }
@@ -101,6 +102,15 @@ it('cancels or rejects invalid corrections without recording an action', async (
 
 it('keeps imported statistics read-only for spectators, including correction controls', () => {
   const root = mount(imported(), false);
+  expect(root.findAllByType('button').filter(node => String(node.props['aria-label']).startsWith('Corrigir estatística de '))).toHaveLength(0);
+  expect(root.findAllByType('input')).toHaveLength(0);
+  expect(root.findAllByType('tr')).toHaveLength(11);
+});
+
+it('keeps imported statistics read-only for a room owner without the correction capability', () => {
+  mocks.room.permissions.correctStats = false;
+  const root = mount(imported());
+  expect(mocks.room.isAdmin).toBe(true);
   expect(root.findAllByType('button').filter(node => String(node.props['aria-label']).startsWith('Corrigir estatística de '))).toHaveLength(0);
   expect(root.findAllByType('input')).toHaveLength(0);
   expect(root.findAllByType('tr')).toHaveLength(11);

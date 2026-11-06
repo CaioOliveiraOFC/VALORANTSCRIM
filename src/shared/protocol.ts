@@ -32,6 +32,8 @@ export interface ScrimSummary {
   maps: string[];
   /** Present on the account-only listing; legacy transports may omit it. */
   access?: RoomAccess;
+  /** Private ownership identity; present only in the administrative listing. */
+  ownerId?: string;
 }
 
 export interface CreateScrimResponse {

@@ -1,3 +1,4 @@
+import { presetPermissions } from '../../shared/adminPermissions';
 import { createElement } from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -17,7 +18,7 @@ async function click(label: string) { await act(async () => { button(label).prop
 
 beforeEach(() => {
   vi.useFakeTimers(); mocks.request.mockReset();
-  mocks.room = { state: readyScrim().state, isAdmin: false, act: vi.fn() };
+  mocks.room = { state: readyScrim().state, isAdmin: false, permissions: presetPermissions('full'), can: (key: string) => mocks.room.isAdmin && mocks.room.permissions[key] === true, act: vi.fn() };
   link = { href: '', download: '', click: vi.fn(), remove: vi.fn() };
   vi.stubGlobal('document', { createElement: vi.fn(() => link), body: { appendChild: vi.fn() } });
   vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:report-test');
@@ -78,4 +79,12 @@ it('turns network failures into a safe message while preserving the report and n
   expect(text(renderer!.root)).not.toContain('private provider details');
   expect(text(renderer!.root)).toContain('Preservar anotação');
   expect(link.click).not.toHaveBeenCalled();
+});
+
+it('preserves notes but hides annotation entry when an owner lacks the notes capability', () => {
+  mocks.room.isAdmin = true; mocks.room.permissions.manageNotes = false;
+  mount();
+  expect(text(renderer!.root)).toContain('Preservar anotação');
+  expect(renderer!.root.findAllByType('form')).toHaveLength(0);
+  expect(mocks.room.act).not.toHaveBeenCalled();
 });

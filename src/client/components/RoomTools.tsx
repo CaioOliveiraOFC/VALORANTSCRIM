@@ -10,6 +10,9 @@ type Request = (input: Record<string, unknown>) => Promise<unknown>;
 export interface RoomToolsProps {
   state: ScrimState;
   isAdmin: boolean;
+  canFocus?: boolean;
+  canDraw?: boolean;
+  canManageTeams?: boolean;
   request: Request;
   /** Server-adjusted wall clock; the room owns the interval. */
   now: number;
@@ -108,7 +111,7 @@ function DrawStage({ draw, now, teamNames }: { draw: RoomDraw; now: number; team
   </div>;
 }
 
-export function RoomTools({ state, isAdmin, request, now, onFocusAll, onBlockingChange }: RoomToolsProps) {
+export function RoomTools({ state, isAdmin, canFocus = false, canDraw = false, canManageTeams = false, request, now, onFocusAll, onBlockingChange }: RoomToolsProps) {
   const [setup, setSetup] = useState<DrawKind | null>(null);
   const [purpose, setPurpose] = useState('');
   const [error, setError] = useState('');
@@ -120,8 +123,10 @@ export function RoomTools({ state, isAdmin, request, now, onFocusAll, onBlocking
   const requestId = useRef<string | null>(null);
   const latest = state.draws?.at(-1);
   const current = activeDraw(state, now);
+  const canOperateDraw = isAdmin && canDraw;
+  const canAcceptDraw = canOperateDraw && (current?.kind !== 'captains' || canManageTeams);
   const expired = latest?.status === 'pending' && now >= latest.expiresAt;
-  const modalOpen = !!current || (isAdmin && !!setup);
+  const modalOpen = !!current || (canOperateDraw && !!setup);
   const titleId = useId(), descriptionId = useId();
   useEffect(() => {
     onBlockingChange?.(modalOpen);
@@ -131,6 +136,9 @@ export function RoomTools({ state, isAdmin, request, now, onFocusAll, onBlocking
     if (current) { setSetup(null); setMenuOpen(false); setLocalNotice(''); }
     setError('');
   }, [current?.id]);
+  useEffect(() => {
+    if (!canOperateDraw || setup === 'captains' && !canManageTeams) { setSetup(null); setMenuOpen(false); }
+  }, [canOperateDraw, canManageTeams, setup]);
 
   async function operation(kind: NonNullable<typeof busy>, task: () => Promise<void>) {
     if (locked.current) return;
@@ -140,11 +148,12 @@ export function RoomTools({ state, isAdmin, request, now, onFocusAll, onBlocking
     finally { locked.current = false; setBusy(null); }
   }
   function openSetup(kind: DrawKind) {
+    if (!canOperateDraw || kind === 'captains' && !canManageTeams) return;
     requestId.current = null; setSetup(kind); setMenuOpen(false); setError(''); setLocalNotice('');
     setPurpose(kind === 'captains' ? 'Definir os capitães dos times' : '');
   }
   async function start() {
-    if (!setup || !purpose.trim() || locked.current) return;
+    if (!canOperateDraw || !setup || !purpose.trim() || locked.current || setup === 'captains' && !canManageTeams) return;
     await operation('start', async () => {
       requestId.current ??= crypto.randomUUID();
       await request({ action: 'draw.start', kind: setup, purpose: purpose.replace(/\s+/g, ' ').trim(), requestId: requestId.current });
@@ -152,7 +161,7 @@ export function RoomTools({ state, isAdmin, request, now, onFocusAll, onBlocking
     });
   }
   async function resolve(action: 'accept' | 'reject') {
-    if (!current || locked.current || (action === 'accept' && now < current.revealAt)) return;
+    if (!canOperateDraw || !current || locked.current || action === 'accept' && (!canAcceptDraw || now < current.revealAt)) return;
     await operation(action, async () => { await request({ action: `draw.${action}`, drawId: current.id }); });
   }
   let notice = localNotice;
@@ -162,20 +171,21 @@ export function RoomTools({ state, isAdmin, request, now, onFocusAll, onBlocking
     ? `Resultado aceito: ${coinName(latest.result)}. ${latest.purpose}`
     : `Capitães confirmados: ${candidateName(latest, latest.result.A)} e ${candidateName(latest, latest.result.B)}.`;
 
-  if (!isAdmin && !current && !notice && !error) return null;
+  if (!(isAdmin && (canFocus || canDraw)) && !current && !notice && !error) return null;
   return <div className="room-tools">
-    {isAdmin && <div className="room-tools-toolbar">
-      <button type="button" className="room-tools-focus" disabled={!!busy || !!current} onClick={() => void operation('focus', async () => { await onFocusAll(); setLocalNotice('Chamada enviada para a sala.'); })}>
+    {isAdmin && (canFocus || canDraw) && <div className="room-tools-toolbar">
+      {canFocus && <button type="button" className="room-tools-focus" disabled={!!busy || !!current} onClick={() => void operation('focus', async () => { await onFocusAll(); setLocalNotice('Chamada enviada para a sala.'); })}>
         <span aria-hidden="true">◎</span>{busy === 'focus' ? 'Chamando…' : 'Chamar todos para cá'}
-      </button>
-      <div className="room-tools-menu" onKeyDown={event => { if (event.key === 'Escape' && menuOpen) { event.preventDefault(); setMenuOpen(false); menuButton.current?.focus(); } }}>
+      </button>}
+      {canDraw && <div className="room-tools-menu" onKeyDown={event => { if (event.key === 'Escape' && menuOpen) { event.preventDefault(); setMenuOpen(false); menuButton.current?.focus(); } }}>
         <button ref={menuButton} type="button" aria-expanded={menuOpen} aria-controls="room-tools-menu" disabled={!!busy || !!current} onClick={() => setMenuOpen(value => !value)}>Sorteios <span aria-hidden="true">⌄</span></button>
         {menuOpen && <div id="room-tools-menu" className="room-tools-menu-items">
-          <button type="button" onClick={() => openSetup('captains')} disabled={state.phase !== 'setup' || state.players.length < 2}>Capitães<small>Dois jogadores da lista geral</small></button>
+          <button type="button" onClick={() => openSetup('captains')} disabled={!canManageTeams || state.phase !== 'setup' || state.players.length < 2}>Capitães<small>Dois jogadores da lista geral</small></button>
           <button type="button" onClick={() => openSetup('coin')}>Cara ou coroa<small>Decida algo com a sala</small></button>
           {(state.phase !== 'setup' || state.players.length < 2) && <p>{state.phase !== 'setup' ? 'Capitães são sorteados durante a preparação.' : 'Adicione pelo menos dois jogadores para sortear os capitães.'}</p>}
+          {!canManageTeams && <p>Sortear capitães exige permissão para montar os times.</p>}
         </div>}
-      </div>
+      </div>}
     </div>}
     {notice && !current && <p className="room-tools-notice" role="status">{notice}</p>}
     {error && !modalOpen && <p className="room-tools-error" role="alert">{error}</p>}
@@ -183,10 +193,10 @@ export function RoomTools({ state, isAdmin, request, now, onFocusAll, onBlocking
       {current ? <>
         <div className="room-draw-dialog-header"><span className="room-draw-room-name">{state.title}</span><h2 id={titleId}>{current.kind === 'captains' ? 'Sorteio dos capitães' : 'Cara ou coroa'}</h2><p id={descriptionId} className="room-draw-purpose">{current.purpose}</p></div>
         <DrawStage key={current.id} draw={current} now={now} teamNames={{ A: state.teams.A.name, B: state.teams.B.name }} />
-        <div className="room-draw-status"><span className={`room-draw-status-dot ${now >= current.revealAt ? 'ready' : ''}`} aria-hidden="true" /><p>{now >= current.revealAt ? isAdmin ? 'Confira o resultado antes de aceitar.' : 'Aguardando o admin confirmar.' : 'O sorteio está aparecendo para toda a sala.'}</p></div>
+        <div className="room-draw-status"><span className={`room-draw-status-dot ${now >= current.revealAt ? 'ready' : ''}`} aria-hidden="true" /><p>{now >= current.revealAt ? canAcceptDraw ? 'Confira o resultado antes de aceitar.' : 'Aguardando o admin confirmar.' : 'O sorteio está aparecendo para toda a sala.'}</p></div>
         {current.kind === 'captains' && <p className="room-draw-effect">Ao aceitar, os capitães iniciam os times. Os outros jogadores ficam na lista para montar as equipes.</p>}
         {error && <p className="room-tools-error" role="alert">{error}</p>}
-        {isAdmin && <div className="room-draw-actions"><button type="button" className="ghost" disabled={!!busy} onClick={() => void resolve('reject')}>{busy === 'reject' ? 'Descartando…' : 'Descartar'}</button><button type="button" className="primary" disabled={!!busy || now < current.revealAt} onClick={() => void resolve('accept')}>{busy === 'accept' ? 'Aceitando…' : 'Aceitar resultado'}</button></div>}
+        {canOperateDraw && <div className="room-draw-actions"><button type="button" className="ghost" disabled={!!busy} onClick={() => void resolve('reject')}>{busy === 'reject' ? 'Descartando…' : 'Descartar'}</button>{canAcceptDraw && <button type="button" className="primary" disabled={!!busy || now < current.revealAt} onClick={() => void resolve('accept')}>{busy === 'accept' ? 'Aceitando…' : 'Aceitar resultado'}</button>}</div>}
       </> : setup && <form className="room-draw-setup" onSubmit={event => { event.preventDefault(); void start(); }}>
         <h2 id={titleId}>{setup === 'captains' ? 'Sortear os capitães' : 'Cara ou coroa'}</h2>
         <p id={descriptionId} className="room-draw-setup-description">{setup === 'captains' ? 'Dois jogadores diferentes serão sorteados entre todos os inscritos, um para cada time.' : 'Conte à sala o que vai ser decidido. O motivo aparece junto da moeda e do resultado.'}</p>

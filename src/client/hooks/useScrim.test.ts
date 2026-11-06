@@ -5,6 +5,7 @@ import { applyEvent, initialState, type ScrimEvent, type ScrimState } from '../.
 import { readyScrim, sampleMatch, sampleLinks } from '../../test/import-fixture';
 import type { RoomAccess } from '../../shared/protocol';
 import type { useScrim as Hook } from './useScrim';
+import { presetPermissions } from '../../shared/adminPermissions';
 
 let useScrim: typeof Hook;
 let snapshot: {state:ScrimState;events:ScrimEvent[];access:RoomAccess};
@@ -207,4 +208,29 @@ it('starts public Realtime again after a private room is shown and recovers afte
  removed=false;snapshot.access={isPublic:false,deletedAt:null,accessVersion:5};
  await act(async()=>{vi.advanceTimersByTime(3000);});await flush();
  expect(client.get().state?.id).toBe('abc123');expect(client.get().access?.accessVersion).toBe(5);expect(client.get().status).toBe('online');
+});
+
+it('refreshes per-action rights without treating room ownership as unrestricted administration', async () => {
+ let permissions = presetPermissions('full');
+ vi.mocked(fetch).mockImplementation(async(input:any)=>new Response(JSON.stringify(String(input).endsWith('/access')
+  ? {role:'admin',access:snapshot.access,permissions,isSuperAdmin:false} : snapshot),{status:200}));
+ const client=await mount();
+ expect(client.get().can('correctStats')).toBe(true);expect(client.get().can('deleteRooms')).toBe(true);
+ permissions=presetPermissions('organizer');
+ await act(async()=>{vi.advanceTimersByTime(3000);});await flush();
+ expect(client.get().role).toBe('admin');expect(client.get().can('correctStats')).toBe(false);
+ expect(client.get().can('deleteRooms')).toBe(false);expect(client.get().can('importMatches')).toBe(true);
+});
+
+it('downgrades a public room after ownership transfer and ignores account-level privileges in a spectator reply', async () => {
+ let owner=true;
+ vi.mocked(fetch).mockImplementation(async(input:any)=>new Response(JSON.stringify(String(input).endsWith('/access')
+  ? {role:owner?'admin':'viewer',access:snapshot.access,permissions:presetPermissions('full'),isSuperAdmin:!owner} : snapshot),{status:200}));
+ const client=await mount();
+ expect(client.get().can('editRoom')).toBe(true);
+ owner=false;snapshot.access={...snapshot.access,accessVersion:2};
+ await act(async()=>{vi.advanceTimersByTime(3000);});await flush();
+ expect(client.get().role).toBe('viewer');expect(client.get().state?.title).toBe('Shared');
+ expect(client.get().can('editRoom')).toBe(false);expect(client.get().can('manageDraws')).toBe(false);
+ expect(client.get().isSuperAdmin).toBe(false);
 });

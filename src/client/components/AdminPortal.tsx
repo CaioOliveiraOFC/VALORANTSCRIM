@@ -71,7 +71,10 @@ function EyeIcon({ visible }: { visible: boolean }) {
 }
 
 function AdminDashboard({ returnTo }: { returnTo: string }) {
-  const { canDeleteRooms = false } = useAdminAuth();
+  const auth = useAdminAuth();
+  const canCreateRooms = auth.can('createRooms');
+  const canPublishRooms = auth.can('publishRooms');
+  const canDeleteRooms = auth.can('deleteRooms');
   const [title, setTitle] = useState('');
   const [format, setFormat] = useState<SeriesFormat>('bo3');
   const [isPublic, setIsPublic] = useState(false);
@@ -91,6 +94,7 @@ function AdminDashboard({ returnTo }: { returnTo: string }) {
   const listKey = canDeleteRooms && filter === 'deleted' ? 'deleted' : 'active';
   const rooms = list?.key === listKey ? list.rows : null;
 
+  useEffect(() => { if (!canPublishRooms) setIsPublic(false); }, [canPublishRooms]);
   useEffect(() => {
     if (!canDeleteRooms) { setFilter('active'); setConfirmingDelete(null); }
   }, [canDeleteRooms]);
@@ -119,10 +123,10 @@ function AdminDashboard({ returnTo }: { returnTo: string }) {
   }, [listKey, retry]);
 
   async function create(event: FormEvent) {
-    event.preventDefault(); if (locked.current) return;
+    event.preventDefault(); if (locked.current || !canCreateRooms) return;
     locked.current = true; setBusy('create'); setError('');
     try {
-      const response = await adminFetch('/api/scrims', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: title.trim() || `Scrim ${new Date().toLocaleDateString('pt-BR')}`, format, isPublic }) });
+      const response = await adminFetch('/api/scrims', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: title.trim() || `Scrim ${new Date().toLocaleDateString('pt-BR')}`, format, isPublic: canPublishRooms && isPublic }) });
       const body = await response.json();
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) dispatchEvent(new Event(ADMIN_AUTH_CHANGE));
@@ -136,7 +140,7 @@ function AdminDashboard({ returnTo }: { returnTo: string }) {
   }
 
   async function changeAccess(room: ManagedRoom, action: AccessAction) {
-    if (locked.current || (action === 'delete' || action === 'restore') && !canDeleteRooms) return;
+    if (locked.current || ((action === 'delete' || action === 'restore') ? !canDeleteRooms : !canPublishRooms)) return;
     locked.current = true; setBusy(`${action}:${room.id}`); setRoomError(''); setNotice('');
     try {
       const response = await adminFetch(`/api/scrims/${room.id}/access`, {
@@ -175,20 +179,20 @@ function AdminDashboard({ returnTo }: { returnTo: string }) {
 
   const visible = rooms?.filter(room => `${room.title} ${room.teams.join(' ')}`.toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR')));
   return <main className="page admin-portal">
-    <header className="admin-dashboard-heading"><div><span className="admin-mode-label">Administrador</span><h1>Área do administrador</h1><p className="muted">Crie a próxima scrim ou continue uma sala existente.</p></div><a href="/guia-admin.html" className="button">Guia do administrador</a></header>
+    <header className="admin-dashboard-heading"><div><span className="admin-mode-label">Administrador</span><h1>Área do administrador</h1><p className="muted">{auth.isSuperAdmin ? 'Crie a próxima scrim ou administre as salas da comunidade.' : 'Crie a próxima scrim ou continue uma das suas salas.'}</p></div><a href="/guia-admin.html" className="button">Guia do administrador</a></header>
     {returnTo !== '/admin' && <p className="admin-return"><a href={returnTo} onClick={internal}>Voltar para a sala que você estava acompanhando</a></p>}
-    <div className="admin-dashboard-grid">
-      <form className="card admin-create-form" onSubmit={create}>
+    <div className={`admin-dashboard-grid${canCreateRooms ? '' : ' is-list-only'}`}>
+      {canCreateRooms && <form className="card admin-create-form" onSubmit={create}>
         <h2>Nova scrim</h2><p className="muted small">Depois de criar, você já entra com os controles de admin.</p>
         <label>Nome da sala <span className="admin-optional">opcional</span><input value={title} onChange={event => setTitle(event.target.value)} placeholder="Scrim de sexta" maxLength={60} disabled={!!busy} /></label>
         <fieldset className="segmented" aria-label="Formato">{(Object.keys(FORMAT_LABEL) as SeriesFormat[]).map(value => <label key={value} className={format === value ? 'on' : ''}><input type="radio" name="admin-format" value={value} checked={format === value} onChange={() => setFormat(value)} disabled={!!busy} />{FORMAT_LABEL[value]}</label>)}</fieldset>
-        <label className="admin-visibility-option"><input type="checkbox" name="isPublic" checked={isPublic} onChange={event => setIsPublic(event.target.checked)} disabled={!!busy} /><span><strong>Mostrar para espectadores</strong><small>{isPublic ? 'A sala aparece na lista pública e pode ser acompanhada pelo link.' : 'A sala fica oculta, disponível apenas no painel dos administradores.'}</small></span></label>
+        <label className="admin-visibility-option"><input type="checkbox" name="isPublic" checked={isPublic} onChange={event => setIsPublic(event.target.checked)} disabled={!!busy || !canPublishRooms} /><span><strong>Mostrar para espectadores</strong><small>{isPublic ? 'A sala aparece na lista pública e pode ser acompanhada pelo link.' : 'Você e o super admin podem acessar a sala oculta.'}</small></span></label>
         {error && <p className="admin-form-error" role="alert">{error}</p>}
         <button className="primary" type="submit" disabled={!!busy}>{busy === 'create' ? 'Criando…' : 'Criar scrim'}</button>
-        <p className="admin-field-help">Você pode mostrar ou ocultar a sala depois, pelo botão de olho na lista.</p>
-      </form>
+        <p className="admin-field-help">{canPublishRooms ? 'Você pode mostrar ou ocultar a sala depois, pelo botão de olho na lista.' : 'Sua conta cria salas ocultas. O super admin pode publicá-las depois.'}</p>
+      </form>}
       <section className="card admin-room-section">
-        <div className="admin-room-heading"><h2>{listKey === 'deleted' ? 'Salas excluídas' : 'Continuar uma sala'}</h2><label><span className="admin-sr-only">Buscar salas para administrar</span><input placeholder="Buscar por sala ou time" value={search} onChange={event => setSearch(event.target.value)} /></label></div>
+        <div className="admin-room-heading"><h2>{listKey === 'deleted' ? 'Salas excluídas' : auth.isSuperAdmin ? 'Salas da comunidade' : 'Minhas salas'}</h2><label><span className="admin-sr-only">Buscar salas para administrar</span><input placeholder="Buscar por sala ou time" value={search} onChange={event => setSearch(event.target.value)} /></label></div>
         {canDeleteRooms && <div className="admin-room-filters" role="group" aria-label="Filtrar salas administrativas"><button type="button" aria-pressed={listKey === 'active'} disabled={!!busy} onClick={() => setFilter('active')}>Salas</button><button type="button" aria-pressed={listKey === 'deleted'} disabled={!!busy} onClick={() => setFilter('deleted')}>Excluídas</button></div>}
         {listKey === 'deleted' && <p className="admin-room-filter-help">O histórico continua guardado. Restaurar devolve a sala ao painel como oculta.</p>}
         {roomError && <p className="admin-form-error admin-room-feedback" role="alert">{roomError}</p>}
@@ -200,7 +204,7 @@ function AdminDashboard({ returnTo }: { returnTo: string }) {
               <div className="admin-managed-room-actions">
                 {listKey === 'deleted' ? <button type="button" className="admin-room-restore" disabled={!!busy} onClick={() => void changeAccess(room, 'restore')}>{busy === `restore:${room.id}` ? 'Restaurando…' : 'Restaurar'}</button> : <>
                   <a href={`/s/${room.id}`} onClick={internal} className="admin-room-manage-link" aria-label={`Administrar ${room.title}`}>Administrar</a>
-                  <button type="button" className={`admin-room-eye ${room.access.isPublic ? 'is-visible' : ''}`} aria-label={room.access.isPublic ? 'Ocultar sala dos espectadores' : 'Mostrar sala para espectadores'} aria-pressed={room.access.isPublic} title={`${room.access.isPublic ? 'Ocultar' : 'Mostrar'} ${room.title}`} disabled={!!busy} onClick={() => void changeAccess(room, room.access.isPublic ? 'hide' : 'show')}><EyeIcon visible={room.access.isPublic} /></button>
+                  {canPublishRooms && <button type="button" className={`admin-room-eye ${room.access.isPublic ? 'is-visible' : ''}`} aria-label={room.access.isPublic ? 'Ocultar sala dos espectadores' : 'Mostrar sala para espectadores'} aria-pressed={room.access.isPublic} title={`${room.access.isPublic ? 'Ocultar' : 'Mostrar'} ${room.title}`} disabled={!!busy} onClick={() => void changeAccess(room, room.access.isPublic ? 'hide' : 'show')}><EyeIcon visible={room.access.isPublic} /></button>}
                   {canDeleteRooms && confirmingDelete !== room.id && <button type="button" className="admin-room-delete" aria-label="Excluir sala" title={`Excluir ${room.title}`} disabled={!!busy} onClick={() => setConfirmingDelete(room.id)}>Excluir sala</button>}
                 </>}
               </div>

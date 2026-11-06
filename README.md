@@ -5,13 +5,15 @@
 A aplicação em uso combina React, Vercel Functions, Supabase Postgres/Realtime e login de organizadores pelo Supabase Auth. Espectadores abrem o link da sala sem conta; administradores entram em `/admin` com e-mail e senha de uma conta liberada pelo responsável pelo site.
 
 - **Deploy e desenvolvimento:** [README-VERCEL.md](README-VERCEL.md).
-- **Criar/liberar os administradores:** [ADMIN-SETUP.md](docs/ADMIN-SETUP.md).
-- **Permitir excluir/restaurar salas a outro admin:** [room-delete-access.sql](docs/room-delete-access.sql).
+- **Instalação do acesso:** [ADMIN-SETUP.md](docs/ADMIN-SETUP.md).
+- **Criar contas, definir permissões e transferir salas:** [SUPER-ADMIN.md](docs/SUPER-ADMIN.md), pela área `/admin/management` exclusiva do Caio.
 - **Tutorial para enviar aos organizadores:** [guia online](public/guia-admin.html) e [PDF](public/guia-admin.pdf), publicados em `/guia-admin.html` e `/guia-admin.pdf`.
 - **Partidas pela API:** [importação de customizadas](docs/MATCH-IMPORT.md).
 - **Foco e sorteios compartilhados:** [ROOM-TOOLS.md](docs/ROOM-TOOLS.md).
 
-O administrador cria a sala, cadastra dez jogadores, monta os times, conduz o veto e importa os resultados. Novas salas começam ocultas; o olho no painel permite mostrá-las aos espectadores. Placar e rounds vêm da importação; a ação **Corrigir estatística** permite ajustar K/D/A depois de importar. O histórico permanece em eventos, inclusive nas salas excluídas da lista e restauradas. Contas comuns sem `app_metadata.scrim_admin: true` e links antigos com `#admin=…` não concedem permissão de edição.
+O organizador atua somente nas próprias salas e nas ações que o Caio liberou. Perfis Organizador e Completo servem como ponto de partida para onze permissões ajustáveis. Só o Caio administra contas e transfere a propriedade das salas; as anteriores à migração ficam inicialmente com ele.
+
+Novas salas começam ocultas. A publicação pelo olho, a importação, a correção de K/D/A e a lixeira dependem das capacidades da conta. Placar e rounds vêm da API e o histórico é preservado. Instale `20261105_super_admin.sql` após as três migrações anteriores: a política privada no banco passa a ser a autoridade de acesso. Flags antigas de `app_metadata`, `user_metadata` e links com `#admin=…` não concedem edição na versão nova.
 
 ## Servidor Node legado (referência)
 
