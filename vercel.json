@@ -2,6 +2,26 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
+      "source": "/api/admin/accounts/:id/status",
+      "destination": "/api/index?route=admin/accounts/:id/status"
+    },
+    {
+      "source": "/api/admin/accounts/:id/password",
+      "destination": "/api/index?route=admin/accounts/:id/password"
+    },
+    {
+      "source": "/api/admin/accounts/:id",
+      "destination": "/api/index?route=admin/accounts/:id"
+    },
+    {
+      "source": "/api/admin/accounts",
+      "destination": "/api/index?route=admin/accounts"
+    },
+    {
+      "source": "/api/scrims/:id/owner",
+      "destination": "/api/index?route=scrims/:id/owner"
+    },
+    {
       "source": "/api/admin/login",
       "destination": "/api/index?route=admin/login"
     },

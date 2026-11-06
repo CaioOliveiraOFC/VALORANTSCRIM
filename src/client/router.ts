@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 
-/** Roteador mínimo baseado na History API: "/", "/admin" e "/s/:id". */
-export type Route = { name: 'home' } | { name: 'admin' } | { name: 'scrim'; id: string };
+/** Roteador mínimo baseado na History API. */
+export type Route = { name: 'home' } | { name: 'admin' } | { name: 'management' } | { name: 'scrim'; id: string };
 
 function parse(pathname: string): Route {
+  if (/^\/admin\/management\/?$/.test(pathname)) return { name: 'management' };
   if (/^\/admin\/?$/.test(pathname)) return { name: 'admin' };
   const m = /^\/s\/([a-z0-9]{6,32})\/?$/.exec(pathname);
   return m ? { name: 'scrim', id: m[1]! } : { name: 'home' };
@@ -27,6 +28,7 @@ export function useRoute(): Route {
 /** Only destinations implemented by this app can receive a post-login return. */
 export function safeAdminReturnTo(value: string | null): string {
   if (value === '/') return '/';
+  if (value === '/admin/management') return value;
   if (value && value === value.trim() && /^\/s\/[a-z0-9]{6,32}\/?$/.test(value)) return value;
   return '/admin';
 }

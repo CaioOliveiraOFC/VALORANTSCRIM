@@ -7,8 +7,9 @@ import { MapCard } from './MapCard';
 import { useRoom } from './ScrimRoom';
 
 export function TeamsPanel() {
-  const { state, isAdmin, act } = useRoom();
-  const editable = isAdmin && state.phase === 'setup';
+  const { state, can, act } = useRoom();
+  const editable = can('manageTeams') && state.phase === 'setup';
+  const canConfigure = can('editRoom') && state.phase === 'setup';
   const [name, setName] = useState('');
   const bench = state.players.filter((p) => !p.team);
   const captains = {
@@ -34,7 +35,7 @@ export function TeamsPanel() {
 
   return (
     <div className="stack">
-      {editable && (
+      {canConfigure && (
         <section data-room-focus="settings" className="card">
           <h2>Configuração</h2>
           <div className="row wrap">
@@ -60,7 +61,7 @@ export function TeamsPanel() {
         </section>
       )}
 
-      {!editable && <section data-room-focus="settings" className="card"><h2>Configuração da sala</h2><p>{state.title} · {FORMAT_LABEL[state.format]}</p><p className="muted small">{state.pool.map(id => MAPS[id].name).join(', ')}</p></section>}
+      {!canConfigure && <section data-room-focus="settings" className="card"><h2>Configuração da sala</h2><p>{state.title} · {FORMAT_LABEL[state.format]}</p><p className="muted small">{state.pool.map(id => MAPS[id].name).join(', ')}</p></section>}
       <div className="teams">
         {TEAM_IDS.map((team) => (
           <TeamColumn key={team} team={team} editable={editable} />
@@ -101,13 +102,13 @@ export function TeamsPanel() {
         </section>
       )}
 
-      {editable && <StartVeto />}
+      {can('manageVeto') && state.phase === 'setup' && <StartVeto />}
     </div>
   );
 }
 
 function TeamColumn({ team, editable }: { team: TeamId; editable: boolean }) {
-  const { state, isAdmin, act } = useRoom();
+  const { state, act } = useRoom();
   const info = state.teams[team];
   const roster = state.players.filter((p) => p.team === team);
 

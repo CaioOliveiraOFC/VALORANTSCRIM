@@ -4,6 +4,7 @@ import { activeDraw, type FocusTarget } from '../../shared/roomTools';
 import { FORMAT_LABEL } from '../../shared/veto';
 import { forgetAdminKey } from '../adminKeys';
 import { useScrim } from '../hooks/useScrim';
+import { useAdminAuth } from '../hooks/useAdminAuth';
 import { navigate } from '../router';
 import { copyText } from '../util';
 import { RoomTools } from './RoomTools';
@@ -18,6 +19,7 @@ interface RoomCtx {
   importRequest: ReturnType<typeof useScrim>['importRequest'];
   state: ScrimState;
   isAdmin: boolean;
+  can: ReturnType<typeof useScrim>['can'];
   /** Envia um comando; erros viram aviso na tela. */
   act: (command: Command) => Promise<boolean>;
 }
@@ -44,7 +46,8 @@ const tabForPhase = (phase: ScrimState['phase']): Tab =>
   ({ setup: 'teams', veto: 'veto', live: 'match', finished: 'report' } as const)[phase];
 
 export function ScrimRoom({ scrimId }: { scrimId: string }) {
-  const { state, events, access, role, status, presence, send, importRequest, roomRequest, serverOffset } = useScrim(scrimId);
+  const { state, events, access, role, can, isSuperAdmin, status, presence, send, importRequest, roomRequest, serverOffset } = useScrim(scrimId);
+  const auth = useAdminAuth();
   const [tab, setTab] = useState<Tab | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const isAdmin = role === 'admin';
@@ -159,7 +162,7 @@ export function ScrimRoom({ scrimId }: { scrimId: string }) {
     [send],
   );
 
-  const ctx = useMemo(() => (state ? { state, isAdmin, act, importRequest } : null), [state, isAdmin, act, importRequest]);
+  const ctx = useMemo(() => (state ? { state, isAdmin, can, act, importRequest } : null), [state, isAdmin, can, act, importRequest]);
 
   if (status === 'not-found') {
     return (
@@ -167,7 +170,7 @@ export function ScrimRoom({ scrimId }: { scrimId: string }) {
         <div className="card">
           <h2>Sala indisponível</h2>
           <p className="muted">Confira o link ou entre como administrador para acessar as salas que você organiza.</p>
-          <a className="button" href={`/admin?returnTo=${encodeURIComponent(`/s/${scrimId}`)}`} onClick={event => { event.preventDefault(); navigate(`/admin?returnTo=${encodeURIComponent(`/s/${scrimId}`)}`); }}>Entrar como admin</a>
+          {auth.status === 'admin' ? <a className="button" href="/admin" onClick={event => { event.preventDefault(); navigate('/admin'); }}>Voltar para minhas salas</a> : <a className="button" href={`/admin?returnTo=${encodeURIComponent(`/s/${scrimId}`)}`} onClick={event => { event.preventDefault(); navigate(`/admin?returnTo=${encodeURIComponent(`/s/${scrimId}`)}`); }}>Entrar como admin</a>}
           <button onClick={() => navigate('/')}>Voltar</button>
         </div>
       </main>
@@ -228,22 +231,22 @@ export function ScrimRoom({ scrimId }: { scrimId: string }) {
             <span className="muted">
               👁 {presence.viewers} {presence.viewers === 1 ? 'espectador' : 'espectadores'}
             </span>
-            <span className={`badge ${isAdmin ? 'admin' : ''}`}>{isAdmin ? 'Admin' : 'Espectador'}</span>
+            <span className={`badge ${isAdmin ? 'admin' : ''}`}>{isAdmin ? isSuperAdmin ? 'Super admin' : 'Admin' : 'Espectador'}</span>
             {isAdmin && access?.isPublic === false && <span className="badge">Oculta para espectadores</span>}
             <button
               onClick={async () => setToast((await copyText(spectatorLink)) ? 'Link de espectador copiado.' : spectatorLink)}
             >
               Copiar link p/ Discord
             </button>
-            {!isAdmin && <a className="button" href={`/admin?returnTo=${encodeURIComponent(`/s/${scrimId}`)}`} onClick={event => { event.preventDefault(); navigate(`/admin?returnTo=${encodeURIComponent(`/s/${scrimId}`)}`); }}>Entrar como admin</a>}
+            {!isAdmin && auth.status !== 'admin' && <a className="button" href={`/admin?returnTo=${encodeURIComponent(`/s/${scrimId}`)}`} onClick={event => { event.preventDefault(); navigate(`/admin?returnTo=${encodeURIComponent(`/s/${scrimId}`)}`); }}>Entrar como admin</a>}
           </div>
         </header>
 
         <div className="callout room-role-help">
-          {isAdmin ? <><strong>Você está administrando esta sala.</strong> Compartilhe o link da sala com quem vai acompanhar. <a href="/guia-admin.html">Ver o guia do administrador</a></> : <><strong>Você está acompanhando como espectador.</strong> Quem vai organizar pode entrar como admin. <a href={`/admin?returnTo=${encodeURIComponent(`/s/${scrimId}`)}`} onClick={event => { event.preventDefault(); navigate(`/admin?returnTo=${encodeURIComponent(`/s/${scrimId}`)}`); }}>Entrar para organizar</a></>}
+          {isAdmin ? <><strong>Você está administrando esta sala.</strong> Compartilhe o link da sala com quem vai acompanhar. <a href="/guia-admin.html">Ver o guia do administrador</a></> : auth.status === 'admin' ? <><strong>Você está acompanhando esta sala como espectador.</strong> Seus controles administrativos ficam nas suas salas. <a href="/admin" onClick={event => { event.preventDefault(); navigate('/admin'); }}>Voltar para minhas salas</a></> : <><strong>Você está acompanhando como espectador.</strong> Quem vai organizar pode entrar como admin. <a href={`/admin?returnTo=${encodeURIComponent(`/s/${scrimId}`)}`} onClick={event => { event.preventDefault(); navigate(`/admin?returnTo=${encodeURIComponent(`/s/${scrimId}`)}`); }}>Entrar para organizar</a></>}
         </div>
 
-        <RoomTools state={ctx.state} isAdmin={isAdmin} request={roomRequest} now={now} onFocusAll={focusEveryone} onBlockingChange={setToolsBlocking} />
+        <RoomTools state={ctx.state} isAdmin={isAdmin} canFocus={can('manageFocus')} canDraw={can('manageDraws')} canManageTeams={can('manageTeams')} request={roomRequest} now={now} onFocusAll={focusEveryone} onBlockingChange={setToolsBlocking} />
 
         <nav className="tabs" role="tablist" aria-label="Navegação da scrim">
           {TABS.map((t) => (

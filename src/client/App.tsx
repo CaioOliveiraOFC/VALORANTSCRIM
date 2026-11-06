@@ -1,6 +1,7 @@
 import { useState, type MouseEvent } from 'react';
 import { Home } from './components/Home';
 import { AdminPortal } from './components/AdminPortal';
+import { SuperAdminPanel } from './components/SuperAdminPanel';
 import { ScrimRoom } from './components/ScrimRoom';
 import { AdminAuthProvider, useAdminAuth } from './hooks/useAdminAuth';
 import { navigate, useRoute } from './router';
@@ -35,12 +36,13 @@ function AppLayout() {
         <a href="/" onClick={internal} aria-current={route.name === 'home' ? 'page' : undefined}>Salas</a>
         <a href="/guia-admin.html">Guia do administrador</a>
         <a className="account-admin-link" href={adminHref} onClick={internal} aria-current={route.name === 'admin' ? 'page' : undefined}>{auth.status === 'admin' ? 'Área do administrador' : 'Entrar como admin'}</a>
+        {auth.status === 'admin' && auth.isSuperAdmin && <a className="account-admin-link" href="/admin/management" onClick={internal} aria-current={route.name === 'management' ? 'page' : undefined}>Administração</a>}
       </nav>
       {auth.status === 'admin' && <div className="account-session"><span title={auth.email}>{auth.email}</span><button type="button" className="ghost" disabled={leaving} onClick={() => void logout()}>{leaving ? 'Saindo…' : 'Sair do admin'}</button></div>}
     </header>
     {error && <p className="account-header-error" role="alert">{error}</p>}
     <div id="page-content" tabIndex={-1}>
-      {route.name === 'scrim' ? <ScrimRoom key={route.id} scrimId={route.id} /> : route.name === 'admin' ? <AdminPortal /> : <Home />}
+      {route.name === 'scrim' ? <ScrimRoom key={route.id} scrimId={route.id} /> : route.name === 'admin' ? <AdminPortal /> : route.name === 'management' ? <SuperAdminPanel /> : <Home />}
     </div>
   </>;
 }

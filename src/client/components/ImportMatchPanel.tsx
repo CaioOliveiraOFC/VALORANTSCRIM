@@ -65,7 +65,7 @@ export function PlayerMatcher({ state, match, redTeam, links, onChange, disabled
 }
 
 export function ImportMatchPanel({ mapIndex }: { mapIndex: number }) {
-  const { state, isAdmin, importRequest } = useRoom();
+  const { state, can, importRequest } = useRoom();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [region, setRegion] = useState('br');
@@ -79,7 +79,7 @@ export function ImportMatchPanel({ mapIndex }: { mapIndex: number }) {
   const [success, setSuccess] = useState(false);
   const [version, setVersion] = useState(state.version);
   const target = state.maps[mapIndex]!;
-  if (!isAdmin) return null;
+  if (!can('importMatches')) return null;
   const eligible = state.phase === 'live' && currentMapIndex(state) === mapIndex && !target.rounds.length && !Object.keys(target.stats).length;
   function select(next: ExternalMatch) {
     const a = suggestLinks(state, next, 'A'), b = suggestLinks(state, next, 'B');

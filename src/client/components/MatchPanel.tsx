@@ -62,7 +62,8 @@ export function MatchPanel({ selectedMap, onSelectMap }: { selectedMap: number |
 }
 
 function Scoreboard({ map, index }: { map: SeriesMap; index: number }) {
-  const { state, isAdmin } = useRoom();
+  const { state, can } = useRoom();
+  const canImport = can('importMatches');
   const score = mapScore(map);
   const winner = mapWinner(map);
   const recorded = map.rounds.length > 0 || !!map.source;
@@ -75,8 +76,8 @@ function Scoreboard({ map, index }: { map: SeriesMap; index: number }) {
         </p>
         {!recorded ? <div className="match-awaiting" role="status">
           <svg className="match-awaiting-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          <h2>{isAdmin ? 'Aguardando importação da partida' : 'Aguardando importação da partida para você'}</h2>
-          <p>{isAdmin ? 'Joguem a customizada. Quando terminar, busque pelo Nome#TAG de um jogador ou pelo link da partida para trazer o resultado.' : 'Quando o administrador importar a partida, o placar, os rounds e as estatísticas aparecerão aqui.'}</p>
+          <h2>{canImport ? 'Aguardando importação da partida' : 'Aguardando importação da partida para você'}</h2>
+          <p>{canImport ? 'Joguem a customizada. Quando terminar, busque pelo Nome#TAG de um jogador ou pelo link da partida para trazer o resultado.' : 'Quando o administrador importar a partida, o placar, os rounds e as estatísticas aparecerão aqui.'}</p>
         </div> : <div className="score-row">
           {TEAM_IDS.map((t) => (
             <div key={t} className={`score-team team-${t} ${winner === t ? 'won' : ''}`}>
@@ -129,16 +130,16 @@ const STAT_FIELDS = ['kills', 'deaths', 'assists'] as const;
 const STAT_LABEL = { kills: 'Abates (K)', deaths: 'Mortes (D)', assists: 'Assistências (A)' } as const;
 
 export function StatsTable({ map, index }: { map: SeriesMap; index: number }) {
-  const { state, isAdmin, act } = useRoom();
+  const { state, can, act } = useRoom();
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState({ kills: '', deaths: '', assists: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const locked = useRef(false);
-  useEffect(() => { setEditing(null); setError(''); }, [index, map.source?.matchId, isAdmin]);
+  useEffect(() => { setEditing(null); setError(''); }, [index, map.source?.matchId, can('correctStats')]);
   const players = state.players.filter((p) => p.team);
   if (!players.length || Object.keys(map.stats).length === 0) return null;
-  const canCorrect = isAdmin && !!map.source;
+  const canCorrect = can('correctStats') && !!map.source;
   const selected = canCorrect ? players.find(p => p.id === editing) : undefined;
 
   function openCorrection(playerId: string) {

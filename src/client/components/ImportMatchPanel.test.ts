@@ -1,3 +1,4 @@
+import { presetPermissions } from '../../shared/adminPermissions';
 import { createElement, useState } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -8,7 +9,7 @@ vi.mock('./ScrimRoom',()=>({useRoom:()=>mocks.room}));
 import { ImportMatchPanel, PlayerMatcher } from './ImportMatchPanel';
 let renderer:ReactTestRenderer;
 afterEach(()=>{if(renderer)act(()=>renderer.unmount());});
-beforeEach(()=>{mocks.room={state:readyScrim().state,isAdmin:true,importRequest:vi.fn()};});
+beforeEach(()=>{mocks.room={state:readyScrim().state,isAdmin:true,permissions:presetPermissions('full'),can:(key:string)=>mocks.room.isAdmin&&mocks.room.permissions[key]===true,importRequest:vi.fn()};});
 const button=(label:string)=>renderer.root.findAllByType('button').find(b=>b.props['aria-label']===label)!;
 it('associates by click or drop, moves unique bindings, blocks the wrong team and removes links',()=>{
  const state=readyScrim().state,match=sampleMatch();let last:PlayerLink[]=[];
@@ -40,6 +41,13 @@ it('requires all links and explicit review before sending a confirmed import',as
 });
 it('renders no import controls for spectators',()=>{
  mocks.room.isAdmin=false;act(()=>{renderer=create(createElement(ImportMatchPanel,{mapIndex:0}));});expect(renderer.toJSON()).toBeNull();
+});
+
+it('does not expose import requests to an owner whose import capability was revoked',()=>{
+ mocks.room.permissions.importMatches=false;
+ act(()=>{renderer=create(createElement(ImportMatchPanel,{mapIndex:0}));});
+ expect(mocks.room.isAdmin).toBe(true);expect(renderer.toJSON()).toBeNull();
+ expect(mocks.room.importRequest).not.toHaveBeenCalled();
 });
 it('suggests the reversed API team orientation from saved player identities',async()=>{
  const match=sampleMatch();

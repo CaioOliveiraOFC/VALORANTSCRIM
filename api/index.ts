@@ -1,6 +1,8 @@
 /** API serverless Vercel: somente o serviço usa a chave secreta do Supabase. */
 import { createHash, randomBytes, randomInt, randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { noPermissions, type AdminPermissionKey } from '../src/shared/adminPermissions.js';
+import { handleAdminAccountRoute } from '../src/serverless/adminAccounts.js';
 import { AdminAuthError, assertSameOrigin, getAdminSession, loginAdmin, logoutAdmin, type AdminSession } from '../src/serverless/adminAuth.js';
 import { fetchMatch, findMatches, ProviderError, regionCode } from '../src/server/henrik.js';
 import type { PlayerLink } from '../src/shared/imports.js';
@@ -14,10 +16,13 @@ import {
   type RoomDraw, type RoomToolsEvent,
 } from '../src/shared/roomTools.js';
 
+const NO_PERMISSIONS = noPermissions();
+
 const ID_RE = /^[a-z0-9]{6,32}$/;
 const REQUEST_ID_RE = /^[A-Za-z0-9_-]{6,64}$/;
 const MAX_BODY = 16 * 1024;
-const ACCESS_MIGRATION = 'Aplique a migração 20261104_room_access.sql no Supabase para usar o acesso às salas.';
+const ACCESS_MIGRATION = 'Aplique a migração 20261105_super_admin.sql no Supabase para usar a administração e a propriedade das salas.';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const hash = (key: string) => createHash('sha256').update(key).digest('hex');
 
 class ApiError extends Error {
@@ -47,13 +52,19 @@ async function db(path: string, options: RequestInit = {}): Promise<any> {
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({})) as { message?: string; code?: string };
-    if ((path.startsWith('scrims?') && ['42703', 'PGRST204'].includes(error.code ?? '')) ||
-        (['rpc/create_scrim_with_access', 'rpc/manage_scrim_access'].includes(path) && error.code === 'PGRST202')) throw new ApiError(503, ACCESS_MIGRATION);
+    if ((['42703', '42P01', 'PGRST204', 'PGRST205'].includes(error.code ?? '') &&
+          (path.startsWith('scrims?') || path.startsWith('scrim_admin_'))) ||
+        (path.startsWith('rpc/') && path !== 'rpc/claim_match_lookup' && error.code === 'PGRST202')) throw new ApiError(503, ACCESS_MIGRATION);
     if (error.message?.includes('SCRIM_DELETED') || error.message?.includes('ROOM_DELETED')) throw new ApiError(404, 'Scrim não encontrada.');
-    if (['STALE_ACCESS', 'ACCESS_STALE', 'ACCESS_VERSION_CONFLICT'].some(marker => error.message?.includes(marker))) throw new ApiError(409, 'Outra alteração de acesso foi gravada. Atualize e tente novamente.');
+    if (error.message?.includes('ADMIN_NOT_FOUND')) throw new ApiError(404, 'Administrador não encontrado.');
+    if (error.message?.includes('OWNER_PROTECTED')) throw new ApiError(403, 'A conta principal está protegida.');
+    if (error.message?.includes('ADMIN_FORBIDDEN')) throw new ApiError(403, 'Sua conta não tem permissão para esta ação.');
+    if (error.message?.includes('INVALID_ADMIN_INPUT')) throw new ApiError(400, 'Dados administrativos inválidos.');
+    if (error.message?.includes('RESET_IN_PROGRESS')) throw new ApiError(409, 'Há uma redefinição de senha em andamento.');
+    if (['STALE_ADMIN_VERSION', 'STALE_ACCESS', 'ACCESS_STALE', 'ACCESS_VERSION_CONFLICT'].some(marker => error.message?.includes(marker))) throw new ApiError(409, 'Outra alteração foi gravada. Atualize e tente novamente.');
     if (error.message?.includes('INVALID_ACCESS')) throw new ApiError(400, 'Alteração de acesso inválida.');
-    if (['rpc/claim_match_lookup', 'rpc/import_match_result'].includes(path) && error.code === 'PGRST202') throw new ApiError(503, 'Importação indisponível: aplique a migração 20261017_match_imports.sql no Supabase.');
-    if (path === 'rpc/import_match_result' && error.code === '23505') throw new ApiError(409, 'Esta partida já foi importada nesta scrim.');
+    if (path === 'rpc/claim_match_lookup' && error.code === 'PGRST202') throw new ApiError(503, 'Importação indisponível: aplique a migração 20261017_match_imports.sql no Supabase.');
+    if (path === 'rpc/import_owned_match' && error.code === '23505') throw new ApiError(409, 'Esta partida já foi importada nesta scrim.');
     if (error.message?.includes('STALE_OR_FORBIDDEN')) throw new ApiError(409, 'Outra ação foi gravada. Recarregue e tente novamente.');
     console.error('Erro no Supabase:', response.status, error.code);
     throw new ApiError(502, 'Falha ao consultar o banco de dados.');
@@ -62,7 +73,7 @@ async function db(path: string, options: RequestInit = {}): Promise<any> {
   return text ? JSON.parse(text) : null;
 }
 
-interface DbAccess { id: string; is_public: boolean; deleted_at: number | null; access_version: number; }
+interface DbAccess { id: string; is_public: boolean; deleted_at: number | null; access_version: number; owner_user_id: string; created_by_user_id: string | null; }
 interface DbScrim extends DbAccess { admin_key_hash: string; state: ScrimState; version: number; }
 
 function accessOf(row: DbAccess): RoomAccess {
@@ -73,27 +84,60 @@ function accessOf(row: DbAccess): RoomAccess {
 
 async function room(id: string): Promise<DbScrim> {
   if (!ID_RE.test(id)) throw new ApiError(404, 'Scrim não encontrada.');
-  const rows = await db(`scrims?select=id,admin_key_hash,state,version,is_public,deleted_at,access_version&id=eq.${id}&limit=1`) as DbScrim[];
+  const rows = await db(`scrims?select=id,admin_key_hash,state,version,is_public,deleted_at,access_version,owner_user_id,created_by_user_id&id=eq.${id}&limit=1`) as DbScrim[];
   if (!rows.length) throw new ApiError(404, 'Scrim não encontrada.');
   accessOf(rows[0]!);
+  if (!UUID_RE.test(rows[0]!.owner_user_id ?? '')) throw new ApiError(503, ACCESS_MIGRATION);
   return rows[0]!;
 }
 
 async function roomAccess(id: string): Promise<DbAccess> {
   if (!ID_RE.test(id)) throw new ApiError(404, 'Scrim não encontrada.');
-  const rows = await db(`scrims?select=id,is_public,deleted_at,access_version&id=eq.${id}&limit=1`) as DbAccess[];
+  const rows = await db(`scrims?select=id,is_public,deleted_at,access_version,owner_user_id,created_by_user_id&id=eq.${id}&limit=1`) as DbAccess[];
   if (!rows.length) throw new ApiError(404, 'Scrim não encontrada.');
   accessOf(rows[0]!);
+  if (!UUID_RE.test(rows[0]!.owner_user_id ?? '')) throw new ApiError(503, ACCESS_MIGRATION);
   return rows[0]!;
 }
 
+function managesRoom(row: DbAccess, actor: AdminSession | null): actor is AdminSession {
+  return !!actor && (actor.isSuperAdmin || row.owner_user_id === actor.userId);
+}
+
 function requireReadable(row: DbAccess, actor: AdminSession | null): void {
-  if (row.deleted_at !== null || (!row.is_public && !actor)) throw new ApiError(404, 'Scrim não encontrada.');
+  if (row.deleted_at !== null || (!row.is_public && !managesRoom(row, actor))) throw new ApiError(404, 'Scrim não encontrada.');
+}
+
+function requirePermission(session: AdminSession, permission: AdminPermissionKey): void {
+  if (!session.isSuperAdmin && session.permissions[permission] !== true) throw new ApiError(403, 'Sua conta não tem permissão para esta ação.');
+}
+
+function requireOwnership(row: DbAccess, session: AdminSession): void {
+  if (!managesRoom(row, session)) {
+    if (!row.is_public || row.deleted_at !== null) throw new ApiError(404, 'Scrim não encontrada.');
+    throw new ApiError(403, 'Você só pode administrar suas próprias salas.');
+  }
 }
 
 function sessionBody(session: AdminSession | null) {
-  return session ? { authenticated: true, user: { email: session.email }, permissions: { canDeleteRooms: session.canDeleteRooms } }
-    : { authenticated: false, permissions: { canDeleteRooms: false } };
+  return session ? { authenticated: true, user: { email: session.email }, isSuperAdmin: session.isSuperAdmin,
+    permissions: { ...session.permissions, canDeleteRooms: session.permissions.deleteRooms } }
+    : { authenticated: false, isSuperAdmin: false, permissions: { ...NO_PERMISSIONS, canDeleteRooms: false } };
+}
+
+function scopedSession(row: DbAccess, session: AdminSession | null) {
+  const managed = managesRoom(row, session);
+  const permissions = managed ? session.permissions : NO_PERMISSIONS;
+  return { role: managed ? 'admin' : 'viewer', permissions: { ...permissions, canDeleteRooms: permissions.deleteRooms }, isSuperAdmin: session?.isSuperAdmin === true };
+}
+
+function commandPermission(type: string): AdminPermissionKey {
+  if (type === 'settings.update') return 'editRoom';
+  if (['team.rename', 'team.captain', 'player.add', 'player.rename', 'player.remove', 'player.assign', 'teams.set'].includes(type)) return 'manageTeams';
+  if (['veto.start', 'veto.ban', 'veto.pick', 'veto.side', 'veto.undo', 'veto.reset'].includes(type)) return 'manageVeto';
+  if (type === 'stats.set') return 'correctStats';
+  if (type === 'note.add') return 'manageNotes';
+  throw new ApiError(400, 'Comando inválido.');
 }
 
 /** Each tool accepts only its intent; winners and clocks are server-owned. */
@@ -169,10 +213,17 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
   };
   const path = (url.searchParams.get('route') || url.pathname.replace(/^\/api\/(?:index\/?|)/, '')).split('/').filter(Boolean);
   if (path[0] === 'health' && req.method === 'GET') {
-    await db('scrims?select=id,is_public,deleted_at,access_version&limit=1');
+    await db('scrims?select=id,is_public,deleted_at,access_version,owner_user_id,created_by_user_id&limit=1');
     return send(res, 200, { ok: true, storage: 'supabase', realtime: 'supabase-postgres-changes' });
   }
   if (path[0] === 'admin') {
+    if (path[1] === 'accounts') {
+      const session = await actor();
+      if (!session?.isSuperAdmin) throw new ApiError(403, 'Somente a conta principal pode gerenciar administradores.');
+      if (req.method !== 'GET') assertSameOrigin(req);
+      const result = await handleAdminAccountRoute(req, path.slice(2), session, db);
+      return send(res, result.status, result.body);
+    }
     if (path.length === 2 && path[1] === 'session' && req.method === 'GET') {
       const session = await actor();
       return send(res, 200, sessionBody(session));
@@ -195,10 +246,13 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
   if (path[0] !== 'scrims') throw new ApiError(404, 'Rota não encontrada.');
 
   if (path.length === 1 && req.method === 'POST') {
-    await requireAdmin();
+    const session = await requireAdmin();
+    requirePermission(session, 'createRooms');
     const input = await jsonBody(req);
+    if (Object.keys(input).some(key => !['title', 'format', 'isPublic'].includes(key))) throw new ApiError(400, 'Dados da sala inválidos.');
     if (input.isPublic !== undefined && typeof input.isPublic !== 'boolean') throw new ApiError(400, 'Escolha se a sala aparece para espectadores.');
     const isPublic = input.isPublic ?? false;
+    if (isPublic) requirePermission(session, 'publishRooms');
     const format = input.format;
     if (format !== 'bo1' && format !== 'bo3' && format !== 'bo5') throw new ApiError(400, 'Formato inválido.');
     const title = typeof input.title === 'string' ? input.title : 'Scrim';
@@ -206,8 +260,8 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     const adminKey = randomBytes(24).toString('base64url');
     const event: ScrimEvent = { seq: 1, at: Date.now(), type: 'scrim.create', id, title, format: format as SeriesFormat };
     const state = applyEvent(initialState(), event);
-    await db('rpc/create_scrim_with_access', { method: 'POST', body: JSON.stringify({
-      p_id: id, p_key_hash: hash(adminKey), p_state: state, p_event: event, p_at: event.at, p_is_public: isPublic,
+    await db('rpc/create_owned_scrim', { method: 'POST', body: JSON.stringify({
+      p_id: id, p_key_hash: hash(adminKey), p_actor_id: session.userId, p_actor_session_version: session.sessionVersion, p_state: state, p_event: event, p_at: event.at, p_is_public: isPublic,
     }) });
     return send(res, 201, { id });
   }
@@ -217,12 +271,13 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
       const session = await actor();
       if (!session) throw new ApiError(403, 'Entre como administrador para acessar as salas internas.');
       const deleted = url.searchParams.get('deleted') === 'true';
-      if (deleted && !session.canDeleteRooms) throw new ApiError(403, 'Sua conta não tem permissão para acessar salas excluídas.');
-      const rows = await db(`scrims?select=state,is_public,deleted_at,access_version&deleted_at=${deleted ? 'not.is.null' : 'is.null'}&order=created_at.desc&limit=500`) as DbScrim[];
-      return send(res, 200, rows.map(row => ({ ...summary(row.state), access: accessOf(row) })));
+      if (deleted && !session.isSuperAdmin && !session.permissions.deleteRooms) throw new ApiError(403, 'Sua conta não tem permissão para acessar salas excluídas.');
+      const ownerFilter = session.isSuperAdmin ? '' : `&owner_user_id=eq.${session.userId}`;
+      const rows = await db(`scrims?select=state,is_public,deleted_at,access_version,owner_user_id,created_by_user_id${ownerFilter}&deleted_at=${deleted ? 'not.is.null' : 'is.null'}&order=created_at.desc&limit=500`) as DbScrim[];
+      return send(res, 200, rows.map(row => ({ ...summary(row.state), access: accessOf(row), ownerId: row.owner_user_id })));
     }
     // Apply visibility filters in Postgres before the limit; never fetch hidden rows for public listing.
-    const rows = await db('scrims?select=state,is_public,deleted_at,access_version&is_public=eq.true&deleted_at=is.null&order=created_at.desc&limit=500') as DbScrim[];
+    const rows = await db('scrims?select=state,is_public,deleted_at,access_version,owner_user_id,created_by_user_id&is_public=eq.true&deleted_at=is.null&order=created_at.desc&limit=500') as DbScrim[];
     for (const row of rows) accessOf(row);
     return send(res, 200, rows.map(row => summary(row.state)));
   }
@@ -241,10 +296,11 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
       if (Object.keys(input).some(key => !['action', 'expectedAccessVersion'].includes(key)) ||
           !['show', 'hide', 'delete', 'restore'].includes(String(input.action)) ||
           !Number.isSafeInteger(input.expectedAccessVersion) || (input.expectedAccessVersion as number) < 1 || (input.expectedAccessVersion as number) > 2147483647) throw new ApiError(400, 'Alteração de acesso inválida.');
-      if ((input.action === 'delete' || input.action === 'restore') && !session.canDeleteRooms) throw new ApiError(403, 'Sua conta não tem permissão para excluir ou restaurar salas.');
+      requireOwnership(metadata, session);
       if (metadata.deleted_at !== null && input.action !== 'restore') throw new ApiError(404, 'Scrim não encontrada.');
-      const rows = await db('rpc/manage_scrim_access', { method: 'POST', body: JSON.stringify({
-        p_id: id, p_expected_access_version: input.expectedAccessVersion, p_action: input.action, p_at: Date.now(), p_actor_id: session.userId,
+      requirePermission(session, input.action === 'delete' || input.action === 'restore' ? 'deleteRooms' : 'publishRooms');
+      const rows = await db('rpc/manage_owned_scrim_access', { method: 'POST', body: JSON.stringify({
+        p_id: id, p_expected_access_version: input.expectedAccessVersion, p_action: input.action, p_at: Date.now(), p_actor_id: session.userId, p_actor_session_version: session.sessionVersion,
       }) }) as DbAccess[];
       if (!Array.isArray(rows) || !rows.length) throw new ApiError(409, 'Outra alteração de acesso foi gravada. Atualize e tente novamente.');
       return send(res, 200, { access: accessOf(rows[0]!) });
@@ -253,9 +309,24 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
       if (req.method === 'POST') assertSameOrigin(req);
       const session = await actor();
       requireReadable(metadata, session);
-      return send(res, 200, { role: session ? 'admin' : 'viewer', access: accessOf(metadata), serverNow: Date.now() });
+      return send(res, 200, { ...scopedSession(metadata, session), access: accessOf(metadata), serverNow: Date.now() });
     }
     throw new ApiError(405, 'Método ou rota não permitido.');
+  }
+  if (path.length === 3 && path[2] === 'owner' && req.method === 'POST') {
+    const session = await requireAdmin();
+    if (!session.isSuperAdmin) throw new ApiError(403, 'Somente a conta principal pode transferir salas.');
+    const input = await jsonBody(req);
+    if (Object.keys(input).some(key => !['ownerId', 'expectedAccessVersion'].includes(key)) ||
+        typeof input.ownerId !== 'string' || !UUID_RE.test(input.ownerId) ||
+        !Number.isSafeInteger(input.expectedAccessVersion) || (input.expectedAccessVersion as number) < 1 || (input.expectedAccessVersion as number) > 2147483647) throw new ApiError(400, 'Transferência inválida.');
+    const metadata = await roomAccess(id);
+    if (metadata.deleted_at !== null) throw new ApiError(404, 'Scrim não encontrada.');
+    const rows = await db('rpc/transfer_scrim_owner', { method: 'POST', body: JSON.stringify({
+      p_id: id, p_actor_id: session.userId, p_actor_session_version: session.sessionVersion, p_expected_access_version: input.expectedAccessVersion, p_owner_id: input.ownerId,
+    }) }) as DbAccess[];
+    if (!Array.isArray(rows) || !rows.length) throw new ApiError(409, 'Outra alteração foi gravada. Atualize e tente novamente.');
+    return send(res, 200, { access: accessOf(rows[0]!), ownerId: input.ownerId });
   }
   const current = await room(id);
   requireReadable(current, await actor());
@@ -281,15 +352,25 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
   }
   if (path.length === 3 && path[2] === 'tools' && req.method === 'POST') {
     const body = await jsonBody(req);
-    await requireAdmin();
+    const session = await requireAdmin();
+    requireOwnership(current, session);
+    const requiredPermissions: AdminPermissionKey[] = [];
     const now = Date.now();
     let toolEvent: RoomToolsEvent;
     if (body.action === 'focus') {
+      requirePermission(session, 'manageFocus');
+      requiredPermissions.push('manageFocus');
       toolFields(body, ['target']);
       if (activeDraw(current.state, now)) throw new ApiError(409, 'Resolva o sorteio antes de chamar atenção para outra área.');
       const target = validateFocusTarget(body.target, current.state);
       toolEvent = { type: 'room.focus', focus: { id: randomUUID(), target, requestedAt: now, expiresAt: now + ROOM_FOCUS_TTL_MS } };
     } else if (body.action === 'draw.start') {
+      requirePermission(session, 'manageDraws');
+      requiredPermissions.push('manageDraws');
+      if (body.kind === 'captains') {
+        requirePermission(session, 'manageTeams');
+        requiredPermissions.push('manageTeams');
+      }
       toolFields(body, ['kind', 'purpose', 'requestId']);
       const id = requestId(body.requestId);
       if (body.kind !== 'captains' && body.kind !== 'coin') throw new ApiError(400, 'Tipo de sorteio inválido.');
@@ -316,10 +397,16 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
       }
       toolEvent = { type: 'draw.start', draw };
     } else if (body.action === 'draw.accept' || body.action === 'draw.reject') {
+      requirePermission(session, 'manageDraws');
+      requiredPermissions.push('manageDraws');
       toolFields(body, ['drawId']);
       const drawId = requestId(body.drawId);
       const draw = activeDraw(current.state, now);
       if (!draw || draw.id !== drawId) throw new ApiError(409, 'Este sorteio já foi resolvido, expirou ou não é o sorteio ativo.');
+      if (body.action === 'draw.accept' && draw.kind === 'captains') {
+        requirePermission(session, 'manageTeams');
+        requiredPermissions.push('manageTeams');
+      }
       if (body.action === 'draw.accept' && now < draw.revealAt) throw new ApiError(409, 'Aguarde o resultado antes de aceitar o sorteio.');
       toolEvent = { type: body.action, drawId };
     } else {
@@ -327,14 +414,17 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     }
     const event: ScrimEvent = { ...toolEvent, seq: current.version + 1, at: now };
     const state = applyEvent(current.state, event);
-    await db('rpc/append_scrim_event', { method: 'POST', body: JSON.stringify({
-      p_id: id, p_key_hash: current.admin_key_hash, p_expected_version: current.version, p_state: state, p_event: event,
+    await db('rpc/append_owned_scrim_event', { method: 'POST', body: JSON.stringify({
+      p_id: id, p_actor_id: session.userId, p_actor_session_version: session.sessionVersion, p_expected_version: current.version, p_expected_access_version: current.access_version,
+      p_state: state, p_event: event, p_required_permissions: requiredPermissions,
     }) });
     return send(res, 200, { state, event, serverNow: Date.now() });
   }
   if (path.length === 3 && path[2] === 'imports' && req.method === 'POST') {
     const body = await jsonBody(req);
-    await requireAdmin();
+    const session = await requireAdmin();
+    requireOwnership(current, session);
+    requirePermission(session, 'importMatches');
     const region = regionCode(body.region);
     if (!['search', 'detail', 'confirm'].includes(String(body.action))) throw new ApiError(400, 'Ação de importação inválida.');
     if (body.action === 'confirm' && activeDraw(current.state, Date.now())) throw new ApiError(409, 'Resolva o sorteio antes de importar a partida.');
@@ -354,13 +444,14 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
       mapIndex: body.mapIndex as number, redTeam: body.redTeam as 'A' | 'B',
       links: body.links.map((l: PlayerLink) => ({ playerId: l.playerId, puuid: l.puuid })) };
     const state = applyEvent(current.state, event);
-    await db('rpc/import_match_result', { method: 'POST', body: JSON.stringify({ p_id: id, p_key_hash: current.admin_key_hash,
-      p_expected_version: current.version, p_state: state, p_event: event, p_raw: raw }) });
+    await db('rpc/import_owned_match', { method: 'POST', body: JSON.stringify({ p_id: id, p_actor_id: session.userId, p_actor_session_version: session.sessionVersion,
+      p_expected_version: current.version, p_expected_access_version: current.access_version, p_state: state, p_event: event, p_raw: raw }) });
     return send(res, 200, { state, event });
   }
   if (path.length === 3 && path[2] === 'command' && req.method === 'POST') {
     const body = await jsonBody(req);
-    await requireAdmin();
+    const session = await requireAdmin();
+    requireOwnership(current, session);
     const command = body.command;
     if (!command || typeof command !== 'object' || Array.isArray(command) || !('type' in command) ||
         typeof command.type !== 'string' || command.type === 'scrim.create' || command.type === 'match.import' ||
@@ -368,6 +459,8 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
       throw new ApiError(400, 'Comando inválido.');
     }
     if (command.type === 'round.win' || command.type === 'round.undo') throw new ApiError(400, 'O placar e os rounds devem vir da importação da partida.');
+    const permission = commandPermission(command.type);
+    requirePermission(session, permission);
     if (command.type === 'stats.set') {
       const mapIndex = (command as Record<string, unknown>).mapIndex;
       if (!Number.isInteger(mapIndex) || (mapIndex as number) < 0 || !current.state.maps[mapIndex as number]?.source) throw new ApiError(400, 'Só é possível corrigir estatísticas depois de importar a partida.');
@@ -375,9 +468,9 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     if (activeDraw(current.state, Date.now())) throw new ApiError(409, 'Resolva o sorteio antes de editar a sala.');
     const event = { ...(command as Command), seq: current.version + 1, at: Date.now() } as ScrimEvent;
     const state = applyEvent(current.state, event);
-    await db('rpc/append_scrim_event', { method: 'POST', body: JSON.stringify({
-      p_id: id, p_key_hash: current.admin_key_hash, p_expected_version: current.version,
-      p_state: state, p_event: event,
+    await db('rpc/append_owned_scrim_event', { method: 'POST', body: JSON.stringify({
+      p_id: id, p_actor_id: session.userId, p_actor_session_version: session.sessionVersion, p_expected_version: current.version, p_expected_access_version: current.access_version,
+      p_state: state, p_event: event, p_required_permissions: [permission],
     }) });
     return send(res, 200, { state, event });
   }

@@ -7,7 +7,7 @@ import { StatsTable } from './MatchPanel';
 import { useRoom } from './ScrimRoom';
 
 export function ReportPanel({ scrimId }: { scrimId: string }) {
-  const { state, isAdmin, act } = useRoom();
+  const { state, can, act } = useRoom();
   const [note, setNote] = useState('');
   const [downloading, setDownloading] = useState<'md' | 'json' | null>(null);
   const [downloadError, setDownloadError] = useState('');
@@ -174,7 +174,7 @@ export function ReportPanel({ scrimId }: { scrimId: string }) {
             </li>
           ))}
         </ul>
-        {isAdmin && (
+        {can('manageNotes') && (
           <form className="row" onSubmit={addNote}>
             <input className="grow" value={note} onChange={(e) => setNote(e.target.value)} maxLength={280} placeholder="Ex.: retake do B na Lotus precisa de mais utilitária" />
             <button disabled={!note.trim()}>Anotar</button>

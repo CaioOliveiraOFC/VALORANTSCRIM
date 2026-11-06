@@ -26,7 +26,7 @@ function button(label: string) {
   return found;
 }
 function mount(overrides: Partial<RoomToolsProps> = {}) {
-  const props: RoomToolsProps = { state: state(), isAdmin: true, now: startedAt, request: vi.fn().mockResolvedValue({}), onFocusAll: vi.fn().mockResolvedValue(undefined), ...overrides };
+  const props: RoomToolsProps = { state: state(), isAdmin: true, canFocus: true, canDraw: true, canManageTeams: true, now: startedAt, request: vi.fn().mockResolvedValue({}), onFocusAll: vi.fn().mockResolvedValue(undefined), ...overrides };
   act(() => { renderer = create(createElement(RoomTools, props)); });
   return props;
 }
@@ -120,7 +120,7 @@ it('announces the accepted coin result and keeps rejected draws out of the modal
 
 it('normalizes a multiline purpose before sending the draw intent', async () => {
   const request = vi.fn().mockResolvedValue({});
-  const props = { state: state(), isAdmin: true, request, now: 1, onFocusAll: vi.fn().mockResolvedValue(undefined) };
+  const props = { state: state(), isAdmin: true, canFocus: true, canDraw: true, canManageTeams: true, request, now: 1, onFocusAll: vi.fn().mockResolvedValue(undefined) };
   act(() => { renderer = create(createElement(RoomTools, props)); });
   const byText = (label: string) => renderer!.root.findAllByType('button').find(node => text(node) === label)!;
   act(() => byText('Sorteios ⌄').props.onClick());
@@ -128,4 +128,33 @@ it('normalizes a multiline purpose before sending the draw intent', async () => 
   act(() => renderer!.root.findByType('textarea').props.onChange({ target: { value: 'Quem começa?\nCara = A; coroa = B.' } }));
   await act(async () => { await renderer!.root.findByType('form').props.onSubmit({ preventDefault() {} }); });
   expect(request).toHaveBeenCalledWith(expect.objectContaining({ purpose: 'Quem começa? Cara = A; coroa = B.' }));
+});
+
+it('separates focus from draws and requires team management for captain assignment', async () => {
+  const request = vi.fn().mockResolvedValue({});
+  mount({ canFocus: false, canDraw: true, canManageTeams: false, request });
+  expect(renderer!.root.findAllByType('button').some(node => text(node).includes('Chamar todos'))).toBe(false);
+  act(() => button('Sorteios ⌄').props.onClick());
+  const captainsButton = renderer!.root.findAllByType('button').find(node => text(node).startsWith('Capitães'))!;
+  expect(captainsButton.props.disabled).toBe(true);
+  act(() => captainsButton.props.onClick());
+  expect(renderer!.root.findAllByType('form')).toHaveLength(0);
+  expect(request).not.toHaveBeenCalled();
+  const draw = captains();
+  act(() => renderer!.update(createElement(RoomTools, { state: { ...state(), draws: [draw] }, isAdmin: true, canDraw: true, canManageTeams: false, now: draw.revealAt, request, onFocusAll: vi.fn() })));
+  expect(renderer!.root.findAllByType('button').some(node => text(node) === 'Aceitar resultado')).toBe(false);
+  await act(async () => { await button('Descartar').props.onClick(); });
+  expect(request).toHaveBeenCalledWith({ action: 'draw.reject', drawId: draw.id });
+});
+
+it('closes a local setup and removes decision controls when draw permission is revoked', () => {
+  const props = mount(); open('Cara ou coroa');
+  expect(renderer!.root.findAllByType('form')).toHaveLength(1);
+  act(() => renderer!.update(createElement(RoomTools, { ...props, canDraw: false, canFocus: false })));
+  expect(renderer!.root.findAllByType('form')).toHaveLength(0);
+  expect(renderer!.root.findAllByType('button')).toHaveLength(0);
+  const draw = coin();
+  act(() => renderer!.update(createElement(RoomTools, { ...props, state: { ...state(), draws: [draw] }, canDraw: false, canFocus: false, now: draw.revealAt })));
+  expect(renderer!.root.findAllByProps({ role: 'dialog' })).toHaveLength(1);
+  expect(renderer!.root.findAllByType('button')).toHaveLength(0);
 });

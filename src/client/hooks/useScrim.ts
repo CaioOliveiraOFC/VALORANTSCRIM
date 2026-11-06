@@ -6,13 +6,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { applyEvent, type Command, type ScrimEvent, type ScrimState } from '../../shared/scrim';
 import type { Role, RoomAccess } from '../../shared/protocol';
 import type { ExternalMatch } from '../../shared/imports';
+import { noPermissions, PERMISSION_KEYS, type AdminPermissionKey, type AdminPermissions } from '../../shared/adminPermissions';
 import { adminFetch, responseClockOffset } from '../authFetch';
 import { newId } from '../util';
 
 export type ConnectionStatus = 'connecting' | 'online' | 'offline' | 'not-found';
 interface Snapshot { state: ScrimState; events: ScrimEvent[]; serverNow?: number; access: RoomAccess; }
 interface EventReply { state: ScrimState; event: ScrimEvent; }
-interface AccessReply { role: Role; access: RoomAccess; serverNow?: number; }
+interface AccessReply { role: Role; access: RoomAccess; serverNow?: number; permissions?: Partial<AdminPermissions>; isSuperAdmin?: boolean; }
 type PhoenixMessage = { topic?: string; event?: string; ref?: string | null; payload?: Record<string, any>; };
 const realtimeUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -34,6 +35,8 @@ export function useScrim(scrimId: string) {
   const [access, setAccess] = useState<RoomAccess | null>(null);
   const [serverOffset, setServerOffset] = useState(0);
   const [role, setRole] = useState<Role>('viewer');
+  const [permissions, setPermissions] = useState<AdminPermissions>(noPermissions);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const [presence, setPresence] = useState({ viewers: 0, admins: 0 });
   const stateRef = useRef<ScrimState | null>(null);
@@ -95,6 +98,7 @@ export function useScrim(scrimId: string) {
       allowedRef.current = false; stateRef.current = null; accessRef.current = null;
       verifiedRole = 'viewer';
       setState(null); setEvents([]); setAccess(null); setRole('viewer');
+      setPermissions(noPermissions()); setIsSuperAdmin(false);
       setStatus(nextStatus);
       stopSocket();
     }
@@ -159,6 +163,10 @@ export function useScrim(scrimId: string) {
         const needsSnapshot = !allowedRef.current || !stateRef.current || refreshAfter;
         allowedRef.current = true;
         verifiedRole = result.role; setRole(result.role);
+        const scopedPermissions = noPermissions();
+        if (result.role === 'admin') for (const key of PERMISSION_KEYS) scopedPermissions[key] = result.permissions?.[key] === true;
+        setPermissions(scopedPermissions);
+        setIsSuperAdmin(result.role === 'admin' && result.isSuperAdmin === true);
         alignClock(response, result.serverNow, sentAt);
         setRoomAccess(result.access);
         if (joined) sendWs('presence', { type: 'presence', event: 'track', payload: { role: verifiedRole } });
@@ -167,7 +175,7 @@ export function useScrim(scrimId: string) {
         if (!disposed && epoch === epochRef.current) {
           // On a failed verification, private content must not remain on screen.
           if (accessRef.current?.isPublic === false) clearRoom('offline');
-          else { verifiedRole = 'viewer'; setRole('viewer'); setStatus('offline'); }
+          else { verifiedRole = 'viewer'; setRole('viewer'); setPermissions(noPermissions()); setIsSuperAdmin(false); setStatus('offline'); }
         }
       } finally { if (epoch === epochRef.current && revision === checkRevision) checkPending = false; }
     }
@@ -266,6 +274,7 @@ export function useScrim(scrimId: string) {
   const denied = useCallback((response: Response) => {
     if ([401, 403, 404].includes(response.status)) {
       setRole('viewer');
+      setPermissions(noPermissions()); setIsSuperAdmin(false);
       if (typeof window !== 'undefined') window.dispatchEvent(new Event('scrim-auth-change'));
     }
   }, []);
@@ -301,5 +310,6 @@ export function useScrim(scrimId: string) {
     } catch (error) { if (epoch === epochRef.current) void refreshRef.current(); throw error; }
   }, [scrimId, acceptEvent, denied]);
 
-  return { state, events, access, role, status, presence, send, importRequest, roomRequest, serverOffset };
+  const can = useCallback((key: AdminPermissionKey) => role === 'admin' && (isSuperAdmin || permissions[key]), [role, isSuperAdmin, permissions]);
+  return { state, events, access, role, permissions, isSuperAdmin, can, status, presence, send, importRequest, roomRequest, serverOffset };
 }

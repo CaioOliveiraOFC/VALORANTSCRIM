@@ -1,3 +1,4 @@
+import { presetPermissions, type AdminPermissionKey } from '../../shared/adminPermissions';
 import { createElement } from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -11,7 +12,7 @@ const text = (node: ReactTestInstance): string => node.children.map(child => typ
 const reply = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
 async function flush() { await act(async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); }); }
 beforeEach(() => {
-  mocks.navigate.mockReset(); mocks.auth = { status: 'viewer', canDeleteRooms: false, login: vi.fn().mockResolvedValue(undefined), logout: vi.fn(), refresh: vi.fn() };
+  mocks.navigate.mockReset(); mocks.auth = { status: 'viewer', isSuperAdmin: false, permissions: presetPermissions('full'), can: (key: AdminPermissionKey) => mocks.auth.status === 'admin' && mocks.auth.permissions[key] && (key !== 'deleteRooms' || mocks.auth.canDeleteRooms), canDeleteRooms: false, login: vi.fn().mockResolvedValue(undefined), logout: vi.fn(), refresh: vi.fn() };
   vi.stubGlobal('location', { search: '' }); vi.stubGlobal('dispatchEvent', vi.fn());
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(reply([])));
 });
@@ -178,4 +179,30 @@ it('does not expose room controls when access metadata has an invalid version', 
   await dashboard(true);
   expect(text(renderer!.root.findByProps({ role: 'alert' }))).toContain('Não foi possível carregar as salas');
   expect(button('Ocultar sala dos espectadores')).toBeUndefined(); expect(button('Excluir sala')).toBeUndefined();
+});
+
+it('keeps assigned rooms accessible when creation, publication and trash permissions are disabled', async () => {
+  mocks.auth.permissions.createRooms = false; mocks.auth.permissions.publishRooms = false;
+  mocks.auth.permissions.deleteRooms = false; mocks.auth.canDeleteRooms = true;
+  vi.stubGlobal('fetch', vi.fn(async () => reply([managedRoom()])));
+  await dashboard(true);
+  expect(renderer!.root.findAllByType('form')).toHaveLength(0);
+  expect(text(renderer!.root)).toContain('Minhas salas');
+  expect(renderer!.root.findByProps({ 'aria-label': 'Administrar Sala de teste' })).toBeTruthy();
+  expect(button('Mostrar sala para espectadores')).toBeUndefined();
+  expect(button('Excluir sala')).toBeUndefined();
+  expect(button('Excluídas')).toBeUndefined();
+});
+
+it('creates a hidden room when publication is unavailable even if a stale checkbox had been selected', async () => {
+  const fetcher = vi.fn(async (_path: string, init?: RequestInit) => reply(init?.method === 'POST' ? { id: 'new123' } : []));
+  vi.stubGlobal('fetch', fetcher); await dashboard();
+  act(() => renderer!.root.findByProps({ name: 'isPublic' }).props.onChange({ target: { checked: true } }));
+  mocks.auth.permissions.publishRooms = false;
+  act(() => renderer!.update(createElement(AdminPortal))); await flush();
+  expect(renderer!.root.findByProps({ name: 'isPublic' }).props.disabled).toBe(true);
+  expect(renderer!.root.findByProps({ name: 'isPublic' }).props.checked).toBe(false);
+  await act(async () => { await renderer!.root.findByType('form').props.onSubmit({ preventDefault() {} }); });
+  const post = fetcher.mock.calls.find(([, init]) => init?.method === 'POST')!;
+  expect(JSON.parse(post[1]!.body as string).isPublic).toBe(false);
 });
