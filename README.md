@@ -10,6 +10,7 @@ A aplicação em uso combina React, Vercel Functions, Supabase Postgres/Realtime
 - **Tutorial para enviar aos organizadores:** [guia online](public/guia-admin.html) e [PDF](public/guia-admin.pdf), publicados em `/guia-admin.html` e `/guia-admin.pdf`.
 - **Partidas pela API:** [importação de customizadas](docs/MATCH-IMPORT.md).
 - **Foco e sorteios compartilhados:** [ROOM-TOOLS.md](docs/ROOM-TOOLS.md).
+- **Próxima identidade Brasa e protótipo X1:** [prévia interativa](docs/BRASA-PREVIEW.md), em `/preview/brasa` nesta branch, com dados locais de demonstração.
 
 O organizador atua somente nas próprias salas e nas ações que o Caio liberou. Perfis Organizador e Completo servem como ponto de partida para onze permissões ajustáveis. Só o Caio administra contas e transfere a propriedade das salas; as anteriores à migração ficam inicialmente com ele.
 

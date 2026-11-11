@@ -1,18 +1,21 @@
-import { useState, type MouseEvent } from 'react';
+import { lazy, Suspense, useState, type MouseEvent } from 'react';
 import { Home } from './components/Home';
 import { AdminPortal } from './components/AdminPortal';
 import { SuperAdminPanel } from './components/SuperAdminPanel';
 import { ScrimRoom } from './components/ScrimRoom';
 import { AdminAuthProvider, useAdminAuth } from './hooks/useAdminAuth';
-import { navigate, useRoute } from './router';
+import { navigate, useRoute, type Route } from './router';
 import './components/AdminPortal.css';
 
+const BrasaPreview = lazy(() => import('./features/brasa-preview/BrasaPreview'));
+
 export function App() {
-  return <AdminAuthProvider><AppLayout /></AdminAuthProvider>;
+  const route = useRoute();
+  if (route.name === 'brasa-preview') return <Suspense fallback={<main className="page"><p role="status">Abrindo a prévia Brasa…</p></main>}><BrasaPreview /></Suspense>;
+  return <AdminAuthProvider><AppLayout route={route} /></AdminAuthProvider>;
 }
 
-function AppLayout() {
-  const route = useRoute();
+function AppLayout({ route }: { route: Route }) {
   const auth = useAdminAuth();
   const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState('');

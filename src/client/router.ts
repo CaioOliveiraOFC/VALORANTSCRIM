@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 
 /** Roteador mínimo baseado na History API. */
-export type Route = { name: 'home' } | { name: 'admin' } | { name: 'management' } | { name: 'scrim'; id: string };
+export type Route = { name: 'home' } | { name: 'admin' } | { name: 'management' } | { name: 'scrim'; id: string } | { name: 'brasa-preview' };
 
 function parse(pathname: string): Route {
+  if (/^\/preview\/brasa\/?$/.test(pathname)) return { name: 'brasa-preview' };
   if (/^\/admin\/management\/?$/.test(pathname)) return { name: 'management' };
   if (/^\/admin\/?$/.test(pathname)) return { name: 'admin' };
   const m = /^\/s\/([a-z0-9]{6,32})\/?$/.exec(pathname);
