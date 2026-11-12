@@ -1,0 +1,23 @@
+{
+  "base": "http://127.0.0.1:4320",
+  "metadata": {
+    "duration": 202.066667,
+    "width": 1920,
+    "height": 1080,
+    "controls": false,
+    "paused": true
+  },
+  "customControls": true,
+  "chapters": 7,
+  "chapterSeek": true,
+  "playback": true,
+  "pause": true,
+  "mobileWidths": [
+    390,
+    320
+  ],
+  "textAlternative": true,
+  "errors": [],
+  "failed": [],
+  "api": []
+}
