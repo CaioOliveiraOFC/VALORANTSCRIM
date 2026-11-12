@@ -197,12 +197,10 @@ export function SetupModal({
   save: (bracket: Bracket) => void;
 }) {
   const [names, setNames] = useState(bracket.entrants.map((player) => player.name).join('\n'));
-  const [size, setSize] = useState('auto');
+  const [size, setSize] = useState(String(bracket.size));
   const [formats, setFormats] = useState(bracket.formats);
   const [error, setError] = useState('');
   const [resetConsent, setResetConsent] = useState(false);
-  const namesChanged =
-    names !== bracket.entrants.map((player) => player.name).join('\n') || size !== 'auto';
   const parsedNames = names
     .split(/[\n,;]+/)
     .map((name) => name.trim())
@@ -212,12 +210,13 @@ export function SetupModal({
       ? Math.max(2, Math.min(32, 2 ** Math.ceil(Math.log2(parsedNames.length || 2))))
       : Number(size);
   const count = Math.log2(capacity);
+  const requiresReset = names !== bracket.entrants.map((player) => player.name).join('\n') || capacity !== bracket.size;
   function submit(event: FormEvent) {
     event.preventDefault();
     try {
-      if (namesChanged && !resetConsent)
+      if (requiresReset && !resetConsent)
         throw new Error('Confirme que deseja substituir a chave de exemplo.');
-      let next = namesChanged ? createBracket(parsedNames, capacity, bracket.title) : bracket;
+      let next = requiresReset ? createBracket(parsedNames, capacity, bracket.title) : bracket;
       for (let round = 0; round < next.formats.length; round++) {
         const format = formats[round] ?? (round === count - 1 ? 5 : 1);
         if (next.formats[round] !== format) next = changeFormat(next, round, format);
@@ -238,7 +237,11 @@ export function SetupModal({
           <textarea
             rows={5}
             value={names}
-            onChange={(event) => setNames(event.target.value)}
+            onChange={(event) => {
+              const value = event.target.value;
+              setNames(value);
+              if (value.split(/[\n,;]+/).map(name => name.trim()).filter(Boolean).length > capacity) setSize('auto');
+            }}
             maxLength={2000}
           />
           <span className="br-field-hint">
@@ -260,7 +263,7 @@ export function SetupModal({
           <p className="br-form-note">
             {parsedNames.length} participantes · {capacity} posições
             {capacity > parsedNames.length
-              ? ` · ${capacity - parsedNames.length} avanços automáticos na primeira fase`
+              ? ` · ${capacity - parsedNames.length} vagas livres`
               : ''}
             .
           </p>
@@ -269,7 +272,7 @@ export function SetupModal({
           <legend>Formato por fase</legend>
           {Array.from({ length: count }, (_, round) => {
             const locked =
-              !namesChanged &&
+              !requiresReset &&
               matches(bracket)
                 .slice(round)
                 .flat()
@@ -304,7 +307,7 @@ export function SetupModal({
             );
           })}
         </fieldset>
-        {namesChanged && (
+        {requiresReset && (
           <label className="br-checkbox br-warning">
             <input
               type="checkbox"

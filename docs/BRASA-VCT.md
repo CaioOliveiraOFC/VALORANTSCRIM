@@ -73,7 +73,7 @@ a aba está visível e cookies necessários à proteção do Preview.
 ## Validação
 
 - `npm ci --cache /tmp/valorantscrim-npm-cache`, typecheck, build e testes.
-- **363 testes em 29 arquivos**, incluindo destaque, permissões, conflito de
+- **366 testes em 30 arquivos**, incluindo destaque, permissões, conflito de
   versão, salas ocultas e RLS/RPC da atualização real no PGlite.
 - 15 cenários Chromium com API e as cinco migrações SQL reais locais; Auth, REST, Henrik e
   imagens de mapas simulados. Nenhuma gravação no Supabase hospedado.
