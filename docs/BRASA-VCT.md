@@ -94,6 +94,8 @@ Capturas: [home desktop](images/brasa-home-desktop.png),
 
 ## Etapas seguintes
 
+As ideias guardadas e suas decisões atuais estão no [roadmap](ROADMAP.md).
+
 X1 persistente, convites e sugestões reais de apelido/título seguem no plano.
 O exemplo X1 continua local e não transmite resultados para espectadores.
 A reorganização completa do servidor legado fica para uma entrega própria,
