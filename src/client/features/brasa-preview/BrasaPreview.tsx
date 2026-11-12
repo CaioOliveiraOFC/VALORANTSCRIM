@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Brand } from './Brand';
-import { Home } from './Home';
+import { Brand } from '../../ui/Brand';
 import { DuelPanel } from './DuelPanel';
 import { Suggestions } from './Suggestions';
 import { WinnerModal, SetupModal, EditProposalModal } from './Dialogs';
-import { Avatar, Icon } from './Icons';
+import { Avatar, Icon } from '../../ui/Icons';
 import { TournamentCanvas } from './TournamentCanvas';
 import {
   acceptProposal,
@@ -23,7 +22,7 @@ function initialView(): View {
   const value = new URLSearchParams(typeof location === 'undefined' ? '' : location.search).get(
     'tela',
   );
-  return value === 'x1' ? 'tournament' : value === 'sugestoes' ? 'suggestions' : 'home';
+  return value === 'sugestoes' ? 'suggestions' : 'tournament';
 }
 
 export default function BrasaPreview() {
@@ -61,11 +60,11 @@ export default function BrasaPreview() {
     return () => removeEventListener('popstate', pop);
   }, []);
   function navigate(next: View) {
+    if (next === 'home') { location.assign('/'); return; }
     if (next === view) return;
     setView(next);
     const url = new URL(location.href);
-    if (next === 'home') url.searchParams.delete('tela');
-    else url.searchParams.set('tela', next === 'tournament' ? 'x1' : 'sugestoes');
+    url.searchParams.set('tela', next === 'tournament' ? 'x1' : 'sugestoes');
     history.pushState(null, '', url.pathname + url.search);
     window.scrollTo({ top: 0, behavior: 'instant' });
     requestAnimationFrame(() => content.current?.focus({ preventScroll: true }));
@@ -142,30 +141,7 @@ export default function BrasaPreview() {
           >
             <Brand />
           </button>
-          <nav aria-label="Navegação Brasa">
-            <button
-              type="button"
-              aria-current={view === 'home' ? 'page' : undefined}
-              onClick={() => navigate('home')}
-            >
-              Ao vivo
-            </button>
-            <button
-              type="button"
-              aria-current={view === 'tournament' ? 'page' : undefined}
-              onClick={() => navigate('tournament')}
-            >
-              Campeonato X1
-            </button>
-            <button
-              type="button"
-              aria-current={view === 'suggestions' ? 'page' : undefined}
-              onClick={() => navigate('suggestions')}
-            >
-              Sugestões
-              {organizer && pendingCount > 0 && <span className="br-count">{pendingCount}</span>}
-            </button>
-          </nav>
+          <nav aria-label="Navegação Brasa"><a href="/">Início</a><a href="/vct">VCT</a><button type="button" aria-current="page" onClick={() => navigate('tournament')}>X1</button><a href="/historico">Histórico</a></nav>
           <div className="br-profile">
             <Avatar name={organizer ? 'Caio' : actor.name} small />
             <span>
@@ -192,17 +168,7 @@ export default function BrasaPreview() {
           </button>
         </div>
         <main id="br-main" className="br-main" tabIndex={-1} ref={content}>
-          {view === 'home' && (
-            <Home
-              bracket={bracket}
-              organizer={organizer}
-              navigate={navigate}
-              openMatch={(id) => {
-                setSelected(id);
-                navigate('tournament');
-              }}
-            />
-          )}
+
           {view === 'tournament' && (
             <>
               <div className="br-breadcrumb">
@@ -221,7 +187,7 @@ export default function BrasaPreview() {
                   <h1>{bracket.title}</h1>
                   <p>O próximo duelo está na chave. Encontre o seu.</p>
                 </div>
-                <div className="br-heading-actions">
+                <div className="br-heading-actions"><button type="button" className="br-button br-secondary" onClick={() => navigate('suggestions')}>Sugestões{pendingCount > 0 && organizer && <span className="br-count">{pendingCount}</span>}</button>
                   {organizer ? (
                     <button
                       type="button"

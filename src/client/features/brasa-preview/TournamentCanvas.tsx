@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { matches, nextMatchId, roundCount, stageName, type Bracket, type Match } from './model';
-import { Avatar, Icon } from './Icons';
+import { Avatar, Icon } from '../../ui/Icons';
 
 interface Props {
   bracket: Bracket;

@@ -1,4 +1,4 @@
-import { Avatar, Icon } from './Icons';
+import { Avatar, Icon } from '../../ui/Icons';
 import { findMatch, roundCount, stageName, type Bracket, type Match } from './model';
 
 export function DuelPanel({

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Avatar, Icon } from './Icons';
+import { Avatar, Icon } from '../../ui/Icons';
 import { cleanName, type Bracket, type Proposal } from './model';
 
 export function Suggestions({

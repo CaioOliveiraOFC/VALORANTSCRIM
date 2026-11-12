@@ -1,3 +1,4 @@
+import { HomeFeatureControl } from '../features/lobby/HomeFeatureControl';
 import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from 'react';
 import {
   PERMISSION_DEFINITIONS, PERMISSION_KEYS, parsePermissions, presetPermissions,
@@ -197,6 +198,7 @@ function Eye({ shown }: { shown: boolean }) {
   return <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" />{!shown && <path d="m3 3 18 18" />}</svg>;
 }
 function RoomsTab() {
+  const [featureOpen, setFeatureOpen] = useState(false);
   const [rooms, setRooms] = useState<ManagedRoom[] | null>(null), [owners, setOwners] = useState<AdminAccount[] | null>(null);
   const [deleted, setDeleted] = useState(false), [query, setQuery] = useState(''), [reload, setReload] = useState(0);
   const [loadError, setLoadError] = useState(''), [ownerError, setOwnerError] = useState(''), [error, setError] = useState(''), [notice, setNotice] = useState('');
@@ -240,7 +242,7 @@ function RoomsTab() {
   }
   const shown = rooms?.filter(room => `${room.title} ${owners?.find(owner => owner.id === room.ownerId)?.displayName ?? ''} ${owners?.find(owner => owner.id === room.ownerId)?.email ?? ''}`.toLocaleLowerCase('pt-BR').includes(query.toLocaleLowerCase('pt-BR')));
   const editing = !!transfer || !!confirming;
-  return <div className="super-workspace"><div className="super-section-heading"><div><h2>Todas as salas</h2><p>Você pode administrar, publicar, transferir e restaurar salas de qualquer organizador.</p></div><a href="/admin" className="button" onClick={internal}>Criar uma sala</a></div>
+  return <div className="super-workspace">{!deleted && <section className="club-home-chooser"><button type="button" aria-expanded={featureOpen} onClick={() => setFeatureOpen(value => !value)}>VCT em destaque na home <span>{featureOpen ? "Fechar" : "Configurar"}</span></button>{featureOpen && rooms && <HomeFeatureControl rooms={rooms} />}</section>}<div className="super-section-heading"><div><h2>Todas as salas</h2><p>Você pode administrar, publicar, transferir e restaurar salas de qualquer organizador.</p></div><a href="/admin" className="button" onClick={internal}>Criar uma sala</a></div>
     {error && <p role="alert" className="super-error">{error}</p>}{notice && <p role="status" className="super-notice">{notice}</p>}
     <section className="card super-list-card"><div className="super-room-controls"><div role="group" aria-label="Filtrar todas as salas"><button type="button" aria-pressed={!deleted} disabled={busy || editing} onClick={() => { setDeleted(false); setError(''); setNotice(''); }}>Ativas</button><button type="button" aria-pressed={deleted} disabled={busy || editing} onClick={() => { setDeleted(true); setError(''); setNotice(''); }}>Excluídas</button></div><label>Buscar sala ou responsável<input value={query} maxLength={100} placeholder="Nome da sala ou do administrador" disabled={busy} onChange={event => setQuery(event.target.value)} /></label></div>
       {ownerError && <div role="alert" className="super-load-error"><p>Não foi possível carregar os responsáveis. {ownerError}</p><button type="button" disabled={busy} onClick={() => setReload(current => current + 1)}>Recarregar responsáveis</button></div>}

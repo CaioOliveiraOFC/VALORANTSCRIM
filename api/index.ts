@@ -22,6 +22,7 @@ const ID_RE = /^[a-z0-9]{6,32}$/;
 const REQUEST_ID_RE = /^[A-Za-z0-9_-]{6,64}$/;
 const MAX_BODY = 16 * 1024;
 const ACCESS_MIGRATION = 'Aplique a migração 20261105_super_admin.sql no Supabase para usar a administração e a propriedade das salas.';
+const HOME_MIGRATION = 'Aplique a migração 20261112_home_feature.sql no Supabase para fixar uma sala na página inicial.';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const hash = (key: string) => createHash('sha256').update(key).digest('hex');
 
@@ -52,6 +53,9 @@ async function db(path: string, options: RequestInit = {}): Promise<any> {
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({})) as { message?: string; code?: string };
+    if (['rpc/get_public_home_feature', 'rpc/get_home_feature_admin', 'rpc/set_home_feature'].includes(path) && ['PGRST202', '42703', '42P01'].includes(error.code ?? '')) throw new ApiError(503, HOME_MIGRATION);
+    if (error.message?.includes('STALE_HOME_FEATURE')) throw new ApiError(409, 'O destaque mudou em outra aba. Recarregue e revise a seleção.');
+    if (error.message?.includes('ROOM_NOT_PUBLIC')) throw new ApiError(400, 'Escolha uma sala publicada e disponível para os espectadores.');
     if ((['42703', '42P01', 'PGRST204', 'PGRST205'].includes(error.code ?? '') &&
           (path.startsWith('scrims?') || path.startsWith('scrim_admin_'))) ||
         (path.startsWith('rpc/') && path !== 'rpc/claim_match_lookup' && error.code === 'PGRST202')) throw new ApiError(503, ACCESS_MIGRATION);
@@ -216,7 +220,27 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     await db('scrims?select=id,is_public,deleted_at,access_version,owner_user_id,created_by_user_id&limit=1');
     return send(res, 200, { ok: true, storage: 'supabase', realtime: 'supabase-postgres-changes' });
   }
+  if (path.length === 2 && path[0] === 'home' && path[1] === 'featured' && req.method === 'GET') {
+    try { return send(res, 200, await db('rpc/get_public_home_feature', { method: 'POST', body: '{}' })); }
+    catch (error) {
+      // Pinning is optional: a pending upgrade must not break public rooms.
+      if (error instanceof ApiError && error.status === 503 && error.message === HOME_MIGRATION) return send(res, 200, { roomId: null });
+      throw error;
+    }
+  }
   if (path[0] === 'admin') {
+    if (path.length === 2 && path[1] === 'home-feature') {
+      const session = await actor();
+      if (!session?.isSuperAdmin) throw new ApiError(403, 'Somente a conta principal pode fixar uma sala na página inicial.');
+      if (req.method === 'GET') return send(res, 200, await db('rpc/get_home_feature_admin', { method: 'POST', body: JSON.stringify({ p_actor_id: session.userId, p_actor_session_version: session.sessionVersion }) }));
+      if (req.method !== 'PUT') throw new ApiError(405, 'Método não permitido.');
+      assertSameOrigin(req);
+      const input = await jsonBody(req);
+      if (Object.keys(input).some(key => !['roomId', 'expectedVersion'].includes(key)) ||
+          (input.roomId !== null && (typeof input.roomId !== 'string' || !ID_RE.test(input.roomId))) ||
+          !Number.isInteger(input.expectedVersion) || (input.expectedVersion as number) < 1) throw new ApiError(400, 'Revise a sala e a versão do destaque.');
+      return send(res, 200, await db('rpc/set_home_feature', { method: 'POST', body: JSON.stringify({ p_actor_id: session.userId, p_actor_session_version: session.sessionVersion, p_expected_version: input.expectedVersion, p_scrim_id: input.roomId }) }));
+    }
     if (path[1] === 'accounts') {
       const session = await actor();
       if (!session?.isSuperAdmin) throw new ApiError(403, 'Somente a conta principal pode gerenciar administradores.');

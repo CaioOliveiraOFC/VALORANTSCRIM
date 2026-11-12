@@ -70,3 +70,11 @@ it('ignores an old response when the auth context changes and clears the old lis
   expect(text(renderer!.root.findByProps({ role: 'alert' }))).toContain('Não foi possível carregar');
   expect(renderer!.root.findAllByType('li')).toHaveLength(0);
 });
+
+
+it('explains an empty completed history when only active public rooms exist', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => response([room])));
+  await act(async () => { renderer = create(createElement(Home, {filter:'finished'})); }); await flush();
+  expect(text(renderer!.root)).toContain('Ainda não há VCTs encerrados.');
+  expect(text(renderer!.root)).not.toContain('Sala pública');
+});

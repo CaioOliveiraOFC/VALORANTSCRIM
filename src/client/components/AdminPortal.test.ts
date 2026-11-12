@@ -18,10 +18,10 @@ beforeEach(() => {
 });
 afterEach(() => { if (renderer) act(() => renderer!.unmount()); renderer = undefined; vi.unstubAllGlobals(); });
 
-it('keeps public home read-only and directs organizers to login', async () => {
+it('keeps the public VCT listing read-only and directs organizers to login', async () => {
   await act(async () => { renderer = create(createElement(Home)); }); await flush();
   expect(renderer!.root.findAllByType('form')).toHaveLength(0);
-  expect(text(renderer!.root)).toContain('Acompanhar uma scrim');
+  expect(text(renderer!.root)).toContain('Salas VCT');
   expect(renderer!.root.findAllByType('a').some(node => node.props.href === '/admin' && text(node) === 'Entrar como admin')).toBe(true);
   expect(vi.mocked(fetch).mock.calls.every(([, init]) => !init || init.method === undefined)).toBe(true);
 });

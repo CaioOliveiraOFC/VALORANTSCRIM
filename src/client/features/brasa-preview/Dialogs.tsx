@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { Avatar, Icon } from './Icons';
+import { Avatar, Icon } from '../../ui/Icons';
 import {
   affectedResults,
   changeFormat,
