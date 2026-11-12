@@ -11,7 +11,8 @@ import {
   demoBracket,
   demoProposals,
   matches,
-  stageName,
+  stageLabel,
+  eliminationLabel,
   type Match,
   type Proposal,
 } from './model';
@@ -60,7 +61,10 @@ export default function BrasaPreview() {
     return () => removeEventListener('popstate', pop);
   }, []);
   function navigate(next: View) {
-    if (next === 'home') { location.assign('/'); return; }
+    if (next === 'home') {
+      location.assign('/');
+      return;
+    }
     if (next === view) return;
     setView(next);
     const url = new URL(location.href);
@@ -141,7 +145,14 @@ export default function BrasaPreview() {
           >
             <Brand />
           </button>
-          <nav aria-label="Navegação Brasa"><a href="/">Início</a><a href="/vct">VCT</a><button type="button" aria-current="page" onClick={() => navigate('tournament')}>X1</button><a href="/historico">Histórico</a></nav>
+          <nav aria-label="Navegação Brasa">
+            <a href="/">Início</a>
+            <a href="/vct">VCT</a>
+            <button type="button" aria-current="page" onClick={() => navigate('tournament')}>
+              X1
+            </button>
+            <a href="/historico">Histórico</a>
+          </nav>
           <div className="br-profile">
             <Avatar name={organizer ? 'Caio' : actor.name} small />
             <span>
@@ -168,7 +179,6 @@ export default function BrasaPreview() {
           </button>
         </div>
         <main id="br-main" className="br-main" tabIndex={-1} ref={content}>
-
           {view === 'tournament' && (
             <>
               <div className="br-breadcrumb">
@@ -187,7 +197,17 @@ export default function BrasaPreview() {
                   <h1>{bracket.title}</h1>
                   <p>O próximo duelo está na chave. Encontre o seu.</p>
                 </div>
-                <div className="br-heading-actions"><button type="button" className="br-button br-secondary" onClick={() => navigate('suggestions')}>Sugestões{pendingCount > 0 && organizer && <span className="br-count">{pendingCount}</span>}</button>
+                <div className="br-heading-actions">
+                  <button
+                    type="button"
+                    className="br-button br-secondary"
+                    onClick={() => navigate('suggestions')}
+                  >
+                    Sugestões
+                    {pendingCount > 0 && organizer && (
+                      <span className="br-count">{pendingCount}</span>
+                    )}
+                  </button>
                   {organizer ? (
                     <button
                       type="button"
@@ -215,7 +235,7 @@ export default function BrasaPreview() {
                             .find((item) => item.players.some((player) => player?.id === actor.id));
                         if (match) {
                           setSelected(match.id);
-                          announce(`Seu confronto: ${stageName(match.round, rounds.length)}.`);
+                          announce(`Seu confronto: ${stageLabel(bracket, match.round)}.`);
                           document.querySelector('.br-duel-panel')?.scrollIntoView({
                             block: 'center',
                             behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -238,13 +258,20 @@ export default function BrasaPreview() {
                 </span>
                 <span>
                   <Icon name="crosshair" size={15} />
-                  X1 · Eliminação simples
+                  X1 · {eliminationLabel(bracket.elimination)}
                 </span>
                 <span>
                   <Icon name="cup" size={15} />
                   Final MD{bracket.formats.at(-1)}
                 </span>
               </div>
+              <p className="br-tournament-rule">
+                {bracket.elimination === 'double'
+                  ? bracket.size === 2
+                    ? 'Dois jogadores: duelo inicial e grande final em série única, sem revanche.'
+                    : 'Primeira derrota: lower. Segunda derrota: eliminado. Grande final em série única, sem revanche.'
+                  : 'Perdeu, saiu. Os vencedores avançam até a final.'}
+              </p>
               <div className="br-tournament-layout">
                 <TournamentCanvas
                   bracket={bracket}

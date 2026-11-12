@@ -5,8 +5,12 @@ import {
   changeFormat,
   createBracket,
   findMatch,
-  matches,
-  roundCount,
+  stages,
+  defaultFormat,
+  isFormatLocked,
+  stageLabel,
+  winnerConsequence,
+  type Elimination,
   stageName,
   type BestOf,
   type Bracket,
@@ -121,11 +125,7 @@ export function WinnerModal({
           <Avatar name={winner.name} />
           <div>
             <strong>{winner.name}</strong>
-            <p>
-              {match.round + 1 === roundCount(bracket)
-                ? 'Vai ser o campeão deste exemplo.'
-                : `Avança para ${stageName(match.round + 1, roundCount(bracket)).toLocaleLowerCase('pt-BR')}.`}
-            </p>
+            <p>{winnerConsequence(bracket, match, winner.id)}</p>
           </div>
           <Icon name="cup" size={25} />
         </div>
@@ -148,7 +148,7 @@ export function WinnerModal({
               {affected
                 .map((id) => {
                   const item = findMatch(bracket, id);
-                  return `${stageName(item.round, roundCount(bracket))}, confronto ${item.index + 1}`;
+                  return `${stageLabel(bracket, item.round)}, confronto ${item.index + 1}`;
                 })
                 .join('; ')}
               .
@@ -198,7 +198,10 @@ export function SetupModal({
 }) {
   const [names, setNames] = useState(bracket.entrants.map((player) => player.name).join('\n'));
   const [size, setSize] = useState(String(bracket.size));
-  const [formats, setFormats] = useState(bracket.formats);
+  const [elimination, setElimination] = useState(bracket.elimination);
+  const [formats, setFormats] = useState<Record<string, BestOf>>(() =>
+    Object.fromEntries(stages(bracket).map((stage, round) => [stage.id, bracket.formats[round]!])),
+  );
   const [error, setError] = useState('');
   const [resetConsent, setResetConsent] = useState(false);
   const parsedNames = names
@@ -209,16 +212,22 @@ export function SetupModal({
     size === 'auto'
       ? Math.max(2, Math.min(32, 2 ** Math.ceil(Math.log2(parsedNames.length || 2))))
       : Number(size);
-  const count = Math.log2(capacity);
-  const requiresReset = names !== bracket.entrants.map((player) => player.name).join('\n') || capacity !== bracket.size;
+  const phaseList = stages({ size: capacity, elimination });
+  const requiresReset =
+    names !== bracket.entrants.map((player) => player.name).join('\n') ||
+    capacity !== bracket.size ||
+    elimination !== bracket.elimination;
   function submit(event: FormEvent) {
     event.preventDefault();
     try {
       if (requiresReset && !resetConsent)
         throw new Error('Confirme que deseja substituir a chave de exemplo.');
-      let next = requiresReset ? createBracket(parsedNames, capacity, bracket.title) : bracket;
+      let next = requiresReset
+        ? createBracket(parsedNames, capacity, bracket.title, elimination)
+        : bracket;
       for (let round = 0; round < next.formats.length; round++) {
-        const format = formats[round] ?? (round === count - 1 ? 5 : 1);
+        const format =
+          formats[phaseList[round]!.id] ?? defaultFormat(phaseList[round]!, capacity, elimination);
         if (next.formats[round] !== format) next = changeFormat(next, round, format);
       }
       save(next);
@@ -230,8 +239,36 @@ export function SetupModal({
     <Modal title="Configurar campeonato de exemplo" close={close}>
       <form onSubmit={submit}>
         <p className="br-modal-intro">
-          Experimente outra quantidade de participantes ou um formato por fase.
+          Escolha como o campeonato funciona. Os formatos MD podem variar em cada fase.
         </p>
+        <fieldset className="br-mode-options">
+          <legend>Modelo do campeonato</legend>
+          {(['single', 'double'] as Elimination[]).map((mode) => (
+            <label key={mode} className={elimination === mode ? 'is-active' : ''}>
+              <input
+                type="radio"
+                name="elimination"
+                value={mode}
+                checked={elimination === mode}
+                onChange={() => setElimination(mode)}
+              />
+              <span>
+                <strong>{mode === 'single' ? 'Eliminação simples' : 'Dupla eliminação'}</strong>
+                <small>
+                  {mode === 'single'
+                    ? 'Perdeu, saiu. Campeonato mais rápido.'
+                    : 'Perdeu uma vez? Tem outra chance na lower.'}
+                </small>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+        {elimination === 'double' && (
+          <p className="br-form-note">
+            Upper + lower, com final única entre os vencedores. Quem perder a grande final fica com
+            o vice, mesmo vindo invicto da upper.
+          </p>
+        )}
         <label className="br-field">
           Participantes
           <textarea
@@ -240,7 +277,13 @@ export function SetupModal({
             onChange={(event) => {
               const value = event.target.value;
               setNames(value);
-              if (value.split(/[\n,;]+/).map(name => name.trim()).filter(Boolean).length > capacity) setSize('auto');
+              if (
+                value
+                  .split(/[\n,;]+/)
+                  .map((name) => name.trim())
+                  .filter(Boolean).length > capacity
+              )
+                setSize('auto');
             }}
             maxLength={2000}
           />
@@ -268,45 +311,42 @@ export function SetupModal({
             .
           </p>
         )}
-        <fieldset className="br-formats">
-          <legend>Formato por fase</legend>
-          {Array.from({ length: count }, (_, round) => {
-            const locked =
-              !requiresReset &&
-              matches(bracket)
-                .slice(round)
-                .flat()
-                .some((match) => match.result);
-            return (
-              <label key={`${count}-${round}`}>
-                <span>
-                  {stageName(round, count)}
-                  {locked && <small>Já tem resultado</small>}
-                </span>
-                <select
-                  aria-label={`Formato de ${stageName(round, count)}`}
-                  disabled={locked}
-                  value={formats[round] ?? (round === count - 1 ? 5 : 1)}
-                  onChange={(event) =>
-                    setFormats((old) =>
-                      Array.from({ length: count }, (_, index) =>
-                        index === round
-                          ? (Number(event.target.value) as BestOf)
-                          : (old[index] ?? (index === count - 1 ? 5 : 1)),
-                      ),
-                    )
-                  }
-                >
-                  {[1, 3, 5].map((value) => (
-                    <option value={value} key={value}>
-                      MD{value}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            );
-          })}
-        </fieldset>
+        <details className="br-format-settings">
+          <summary>
+            MD por fase<span>Configurar MD1, MD3 ou MD5</span>
+          </summary>
+          <fieldset className="br-formats">
+            <legend>Formato por fase</legend>
+            {phaseList.map((stage, round) => {
+              const locked = !requiresReset && isFormatLocked(bracket, round);
+              return (
+                <label key={`${capacity}-${stage.id}`}>
+                  <span>
+                    {stage.label}
+                    {locked && <small>Resultado protegido</small>}
+                  </span>
+                  <select
+                    aria-label={`Formato de ${stage.label}`}
+                    disabled={locked}
+                    value={formats[stage.id] ?? defaultFormat(stage, capacity, elimination)}
+                    onChange={(event) =>
+                      setFormats((old) => ({
+                        ...old,
+                        [stage.id]: Number(event.target.value) as BestOf,
+                      }))
+                    }
+                  >
+                    {[1, 3, 5].map((value) => (
+                      <option value={value} key={value}>
+                        MD{value}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              );
+            })}
+          </fieldset>
+        </details>
         {requiresReset && (
           <label className="br-checkbox br-warning">
             <input

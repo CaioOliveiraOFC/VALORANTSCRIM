@@ -111,7 +111,7 @@ describe('prototype bracket rules', () => {
   });
 
   it('allows future-phase format changes but protects phases with decisions', () => {
-    const bracket = demoBracket();
+    const bracket = demoBracket('single');
     expect(changeFormat(bracket, 1, 5).formats).toEqual([1, 5, 5]);
     expect(() => changeFormat(bracket, 0, 3)).toThrow('protegido');
     expect(() => changeFormat(bracket, -1, 1)).toThrow('inválido');
