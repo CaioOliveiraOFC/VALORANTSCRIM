@@ -1,0 +1,351 @@
+{
+  "duration": 202.06666666666666,
+  "fps": 30,
+  "sourceCommit": "212b94ac2c6e845d1b23010b47a913aa85d068fa",
+  "roomTitle": "Brasa de Sexta — piloto",
+  "sourceOffsets": {
+    "admin": 4.229419837000023,
+    "viewer": 2.547627078000005
+  },
+  "perspectives": [
+    {
+      "time": 0,
+      "role": "admin",
+      "end": 62.98
+    },
+    {
+      "time": 62.98,
+      "role": "viewer",
+      "end": 66.1
+    },
+    {
+      "time": 66.1,
+      "role": "admin",
+      "end": 144.43
+    },
+    {
+      "time": 144.43,
+      "role": "viewer",
+      "end": 147.53
+    },
+    {
+      "time": 147.53,
+      "role": "admin",
+      "end": 154.82
+    },
+    {
+      "time": 154.82,
+      "role": "viewer",
+      "end": 157.92
+    },
+    {
+      "time": 157.92,
+      "role": "admin",
+      "end": 195.79
+    },
+    {
+      "time": 195.79,
+      "role": "viewer",
+      "end": 202.06666666666666
+    }
+  ],
+  "steps": [
+    {
+      "id": "inicio",
+      "title": "Criar uma scrim",
+      "description": "Da página inicial até os times e mapas prontos para jogar.",
+      "role": "admin",
+      "time": 0,
+      "start": 0.0,
+      "end": 12.466666666666667,
+      "duration": 12.466666666666667
+    },
+    {
+      "id": "login",
+      "title": "Entre como administrador",
+      "description": "Use uma conta que já foi liberada pela administração.",
+      "role": "admin",
+      "time": 12.47,
+      "start": 12.466666666666667,
+      "end": 42.86666666666667,
+      "duration": 30.4
+    },
+    {
+      "id": "criar",
+      "title": "Dê um nome e escolha MD3",
+      "description": "Marque “Mostrar para espectadores” para publicar a sala.",
+      "role": "admin",
+      "time": 42.88,
+      "start": 42.86666666666667,
+      "end": 58.666666666666664,
+      "duration": 15.799999999999997
+    },
+    {
+      "id": "compartilhar",
+      "title": "Compartilhe o link da sala",
+      "description": "Copiar link p/ Discord entrega o endereço de acompanhamento.",
+      "role": "admin",
+      "time": 58.65,
+      "start": 58.666666666666664,
+      "end": 62.96666666666667,
+      "duration": 4.300000000000004
+    },
+    {
+      "id": "view-4",
+      "title": "O espectador entra sem login",
+      "description": "O mesmo link abre a sala pública, sem controles de edição.",
+      "role": "viewer",
+      "time": 62.98,
+      "start": 62.96666666666667,
+      "end": 66.1,
+      "duration": 3.1333333333333258
+    },
+    {
+      "id": "jogadores",
+      "title": "Adicione os dez jogadores",
+      "description": "Digite cada nick e clique em Adicionar.",
+      "role": "admin",
+      "time": 66.1,
+      "start": 66.1,
+      "end": 130.06666666666666,
+      "duration": 63.96666666666667
+    },
+    {
+      "id": "equipes",
+      "title": "Forme duas equipes de cinco",
+      "description": "Sortear times distribui os dez jogadores entre as equipes.",
+      "role": "admin",
+      "time": 130.05,
+      "start": 130.06666666666666,
+      "end": 138.63333333333333,
+      "duration": 8.566666666666663
+    },
+    {
+      "id": "capitaes",
+      "title": "Defina um capitão por equipe",
+      "description": "Clique em Capitão no jogador escolhido de cada time.",
+      "role": "admin",
+      "time": 138.63,
+      "start": 138.63333333333333,
+      "end": 144.43333333333334,
+      "duration": 5.800000000000011
+    },
+    {
+      "id": "view-8",
+      "title": "Os times aparecem para todos",
+      "description": "Nomes, equipes e capitães chegam ao espectador pela sala.",
+      "role": "viewer",
+      "time": 144.43,
+      "start": 144.43333333333334,
+      "end": 147.53333333333333,
+      "duration": 3.0999999999999943
+    },
+    {
+      "id": "iniciar-veto",
+      "title": "Escolha quem começa o veto",
+      "description": "O vencedor do sorteio ou duelo escolhe quem começa.",
+      "role": "admin",
+      "time": 147.53,
+      "start": 147.53333333333333,
+      "end": 151.06666666666666,
+      "duration": 3.5333333333333314
+    },
+    {
+      "id": "veto-0",
+      "title": "Ban da Brasa",
+      "description": "Siga a equipe e a ação indicadas na tela.",
+      "role": "admin",
+      "time": 151.08,
+      "start": 151.06666666666666,
+      "end": 154.83333333333334,
+      "duration": 3.76666666666668
+    },
+    {
+      "id": "view-11",
+      "title": "O veto também chega ao público",
+      "description": "A escolha do administrador aparece na visão do telespectador.",
+      "role": "viewer",
+      "time": 154.82,
+      "start": 154.83333333333334,
+      "end": 157.93333333333334,
+      "duration": 3.0999999999999943
+    },
+    {
+      "id": "veto-1",
+      "title": "Ban do Carvão",
+      "description": "Siga a equipe e a ação indicadas na tela.",
+      "role": "admin",
+      "time": 157.92,
+      "start": 157.93333333333334,
+      "end": 162.0,
+      "duration": 4.066666666666663
+    },
+    {
+      "id": "veto-2",
+      "title": "Pick da Brasa",
+      "description": "Siga a equipe e a ação indicadas na tela.",
+      "role": "admin",
+      "time": 162.01,
+      "start": 162.0,
+      "end": 166.26666666666668,
+      "duration": 4.26666666666668
+    },
+    {
+      "id": "veto-3",
+      "title": "Carvão escolhe o lado",
+      "description": "Siga a equipe e a ação indicadas na tela.",
+      "role": "admin",
+      "time": 166.27,
+      "start": 166.26666666666668,
+      "end": 169.83333333333334,
+      "duration": 3.566666666666663
+    },
+    {
+      "id": "veto-4",
+      "title": "Pick do Carvão",
+      "description": "Siga a equipe e a ação indicadas na tela.",
+      "role": "admin",
+      "time": 169.83,
+      "start": 169.83333333333334,
+      "end": 173.53333333333333,
+      "duration": 3.6999999999999886
+    },
+    {
+      "id": "veto-5",
+      "title": "Brasa escolhe o lado",
+      "description": "Siga a equipe e a ação indicadas na tela.",
+      "role": "admin",
+      "time": 173.54,
+      "start": 173.53333333333333,
+      "end": 177.06666666666666,
+      "duration": 3.5333333333333314
+    },
+    {
+      "id": "veto-6",
+      "title": "Segundo ban da Brasa",
+      "description": "Siga a equipe e a ação indicadas na tela.",
+      "role": "admin",
+      "time": 177.07,
+      "start": 177.06666666666666,
+      "end": 181.06666666666666,
+      "duration": 4.0
+    },
+    {
+      "id": "veto-7",
+      "title": "Segundo ban do Carvão",
+      "description": "Siga a equipe e a ação indicadas na tela.",
+      "role": "admin",
+      "time": 181.07,
+      "start": 181.06666666666666,
+      "end": 184.73333333333332,
+      "duration": 3.666666666666657
+    },
+    {
+      "id": "veto-8",
+      "title": "Decider",
+      "description": "Ataque ou defesa.",
+      "role": "admin",
+      "time": 184.74,
+      "start": 184.73333333333332,
+      "end": 186.0,
+      "duration": 1.26666666666668
+    },
+    {
+      "id": "pronta-admin",
+      "title": "Scrim pronta para jogar",
+      "description": "Times fechados, veto concluído e três mapas definidos.",
+      "role": "admin",
+      "time": 186.0,
+      "start": 186.0,
+      "end": 195.8,
+      "duration": 9.800000000000011
+    },
+    {
+      "id": "view-21",
+      "title": "Todos podem acompanhar",
+      "description": "A partida fica aguardando a importação após o jogo.",
+      "role": "viewer",
+      "time": 195.79,
+      "start": 195.8,
+      "end": 202.06666666666666,
+      "duration": 6.2666666666666515
+    }
+  ],
+  "verification": {
+    "players": 10,
+    "teams": {
+      "A": 5,
+      "B": 5
+    },
+    "captains": {
+      "A": {
+        "name": "Brasa",
+        "captainId": "66641y6x406b2d2f"
+      },
+      "B": {
+        "name": "Carvão",
+        "captainId": "2w5d0o1b630u2r20"
+      }
+    },
+    "maps": [
+      {
+        "mapId": "haven",
+        "startingSide": {
+          "A": "atk",
+          "B": "def"
+        },
+        "rounds": 0
+      },
+      {
+        "mapId": "lotus",
+        "startingSide": {
+          "A": "atk",
+          "B": "def"
+        },
+        "rounds": 0
+      },
+      {
+        "mapId": "sunset",
+        "startingSide": {
+          "A": "def",
+          "B": "atk"
+        },
+        "rounds": 0
+      }
+    ],
+    "phase": "live",
+    "eventCount": 26,
+    "eventTypes": [
+      "scrim.create",
+      "player.add",
+      "player.add",
+      "player.add",
+      "player.add",
+      "player.add",
+      "player.add",
+      "player.add",
+      "player.add",
+      "player.add",
+      "player.add",
+      "teams.set",
+      "team.rename",
+      "team.rename",
+      "team.captain",
+      "team.captain",
+      "veto.start",
+      "veto.ban",
+      "veto.ban",
+      "veto.pick",
+      "veto.side",
+      "veto.pick",
+      "veto.side",
+      "veto.ban",
+      "veto.ban",
+      "veto.side"
+    ],
+    "externalRequestsBlocked": 0,
+    "viewerHasEditingControls": false,
+    "errors": [],
+    "startingSidesVerified": true
+  }
+}

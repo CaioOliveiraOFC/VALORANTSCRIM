@@ -1,0 +1,203 @@
+:root {
+  color-scheme: dark;
+  font-family: 'Source Sans 3', sans-serif;
+  background: #100f0e;
+  color: #f4ece0;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+a {
+  color: #f1c67c;
+  text-underline-offset: 4px;
+}
+button,
+a,
+summary {
+  touch-action: manipulation;
+}
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible {
+  outline: 3px solid #ff9a44;
+  outline-offset: 4px;
+}
+main,
+header,
+footer {
+  width: min(1320px, calc(100% - 40px));
+  margin: auto;
+}
+header {
+  padding: 24px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #4b3d30;
+}
+.brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  text-decoration: none;
+  color: inherit;
+  font:
+    600 30px 'Barlow Condensed',
+    sans-serif;
+}
+.brand img {
+  width: 34px;
+  height: 42px;
+}
+.pilot-label {
+  font-size: 14px;
+  color: #c9bcae;
+}
+main {
+  padding: 42px 0;
+}
+h1,
+h2 {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 600;
+}
+h1 {
+  font-size: clamp(34px, 5vw, 58px);
+  line-height: 1.05;
+  margin: 0 0 14px;
+}
+h2 {
+  font-size: 27px;
+  margin: 0 0 16px;
+}
+.intro {
+  max-width: 75ch;
+  color: #c9bcae;
+  font-size: 18px;
+  line-height: 1.55;
+  margin: 0 0 26px;
+}
+.player {
+  background: #1d1a17;
+  border: 1px solid #4b3d30;
+  border-radius: 10px;
+  overflow: hidden;
+}
+video {
+  width: 100%;
+  height: auto;
+  display: block;
+  background: #100f0e;
+  aspect-ratio: 16/9;
+}
+.player-note {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 13px 18px;
+  border-top: 1px solid #4b3d30;
+  font-size: 15px;
+  color: #c9bcae;
+}
+.content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 38px;
+  margin-top: 35px;
+}
+.chapters {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 7px;
+}
+.chapters button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  text-align: left;
+  padding: 12px 15px;
+  border: 1px solid #4b3d30;
+  border-radius: 5px;
+  background: #1d1a17;
+  color: #f4ece0;
+  font: inherit;
+  cursor: pointer;
+}
+.chapters button:hover,
+.chapters button[aria-current='true'] {
+  border-color: #eaa257;
+  background: #2b2219;
+}
+.chapters time {
+  font-variant-numeric: tabular-nums;
+  color: #f1c67c;
+  min-width: 36px;
+}
+.guide {
+  color: #c9bcae;
+  line-height: 1.6;
+}
+.guide strong {
+  color: #f4ece0;
+}
+details {
+  border-top: 1px solid #4b3d30;
+  padding-top: 16px;
+}
+summary {
+  cursor: pointer;
+  color: #f1c67c;
+  font-size: 18px;
+}
+.guide li {
+  margin-bottom: 12px;
+}
+footer {
+  padding: 25px 0;
+  border-top: 1px solid #4b3d30;
+  color: #c9bcae;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  font-size: 15px;
+}
+@media (max-width: 700px) {
+  main {
+    padding-top: 30px;
+  }
+  .content {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+  .player-note {
+    padding: 12px;
+  }
+  .pilot-label {
+    max-width: 150px;
+    text-align: right;
+  }
+  header {
+    padding: 18px 0;
+  }
+  footer {
+    flex-wrap: wrap;
+  }
+}
+
+/* Keep controls outside the picture so pausing never obscures the instructions. */
+.pilot-controls[hidden] { display: none; }
+.pilot-controls { display: grid; grid-template-columns: auto 1fr auto auto; gap: 12px; align-items: center; padding: 12px 18px; background: #1d1a17; border-top: 1px solid #4b3d30; }
+.pilot-controls button { border: 1px solid #705333; border-radius: 4px; background: #30261c; color: #f4ece0; font: inherit; padding: 8px 12px; cursor: pointer; }
+.pilot-controls input { width: 100%; min-width: 40px; accent-color: #ff7a18; }
+.pilot-controls output { white-space: nowrap; font-variant-numeric: tabular-nums; color: #c9bcae; }
+.player:fullscreen { display: flex; flex-direction: column; justify-content: center; height: 100%; background: #100f0e; border: 0; border-radius: 0; }
+.player:fullscreen video { width: 100%; max-height: calc(100vh - 80px); object-fit: contain; min-height: 0; flex: 1; }
+.player:fullscreen .player-note { display: none; }
+@media(max-width:600px) { .pilot-controls { grid-template-columns: auto 1fr auto; padding: 10px; gap: 8px; font-size: 14px; } .pilot-controls input { grid-column: 1 / -1; grid-row: 2; } .pilot-controls output { grid-column: 2; grid-row: 1; text-align: center; } #fullscreen { grid-column: 3; grid-row: 1; } .pilot-controls button { padding: 8px; } }

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Criar uma scrim · Piloto Brasa</title>
+    <meta
+      name="description"
+      content="Acompanhe a criação completa de uma scrim: login, sala pública, jogadores, equipes, capitães e veto MD3."
+    />
+    <link rel="icon" type="image/svg+xml" href="/brand/brasa-symbol.svg" />
+    <link rel="stylesheet" href="/brand/fonts/fonts.css" />
+    <link rel="stylesheet" href="criar-scrim.css" />
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="/"><img src="/brand/brasa-symbol.svg" alt="" />Brasa</a
+      ><span class="pilot-label">Piloto de tutorial · dados fictícios</span>
+    </header>
+    <main>
+      <h1>Crie sua primeira scrim</h1>
+      <p class="intro">
+        Do login até a sala pronta para jogar. Acompanhe a criação em velocidade normal, com as
+        visões do administrador e de quem está assistindo.
+      </p>
+      <section class="player" aria-label="Vídeo da criação completa da scrim">
+        <video
+          id="tutorial"
+          controls
+          playsinline
+          preload="metadata"
+          poster="criar-scrim.webp"
+          aria-label="Criar uma scrim do início ao fim"
+        >
+          <source src="criar-scrim.mp4" type="video/mp4" />
+          <track kind="chapters" src="criar-scrim.vtt" srclang="pt-BR" label="Etapas" />
+          Seu navegador não reproduziu o vídeo. <a href="criar-scrim.mp4">Baixe o arquivo MP4</a>.
+        </video>
+        <div class="pilot-controls" id="pilot-controls" hidden>
+  <button type="button" id="toggle-play">Reproduzir</button>
+  <input id="video-position" type="range" min="0" max="203" step="0.1" value="0" aria-label="Posição no vídeo">
+  <output id="video-clock" aria-live="off">0:00 / 3:22</output>
+  <button type="button" id="fullscreen">Tela cheia</button>
+</div>
+<div class="player-note">
+          <span id="duration">Gravação completa · sem narração</span
+          ><span>Use tela cheia para ler os controles em detalhes.</span>
+        </div>
+      </section>
+      <div class="content">
+        <section aria-labelledby="chapters-title">
+          <h2 id="chapters-title">Ir direto para uma etapa</h2>
+          <ol class="chapters" id="chapters"></ol>
+        </section>
+        <section class="guide" aria-labelledby="learn-title">
+          <h2 id="learn-title">Uma sala, do começo ao fim</h2>
+          <p>
+            O exemplo termina com
+            <strong>dez jogadores, duas equipes de cinco e três mapas definidos</strong>. Depois, é
+            só jogar a customizada. A importação do resultado fica para outro tutorial.
+          </p>
+          <details>
+            <summary>Prefere o passo a passo em texto?</summary>
+            <ol>
+              <li>Entre em <strong>Entrar como admin</strong> com uma conta autorizada.</li>
+              <li>
+                Em <strong>Nova scrim</strong>, dê um nome à sala, escolha MD3 e marque
+                <strong>Mostrar para espectadores</strong>. Clique em <strong>Criar scrim</strong>.
+              </li>
+              <li>
+                Use <strong>Copiar link p/ Discord</strong> para compartilhar o acompanhamento
+                público. Espectadores abrem o link sem login.
+              </li>
+              <li>
+                Adicione os dez nicks na aba <strong>Times</strong> e use
+                <strong>Sortear times</strong> para formar o 5v5.
+              </li>
+              <li>
+                Renomeie as equipes e clique fora do campo para salvar. Selecione um capitão em cada
+                equipe.
+              </li>
+              <li>
+                Escolha quem começa e clique em <strong>Começar veto</strong>. Siga a equipe e a
+                ação indicadas para todos os bans, picks e lados.
+              </li>
+              <li>
+                Ao terminar, confira os três mapas na aba <strong>Partida</strong>. A sala está
+                pronta e aguarda a importação após o jogo.
+              </li>
+            </ol>
+          </details>
+          <p>
+            <a href="criar-scrim.mp4" download>Baixar o piloto em MP4</a> ·
+            <a href="/guia-admin.html">Guia do administrador</a>
+          </p>
+        </section>
+      </div>
+    </main>
+    <footer>
+      <span>O jogo é sério. A resenha também.</span><a href="/vct">Ir para as salas VCT</a>
+    </footer>
+    <script src="criar-scrim.js" defer></script>
+  </body>
+</html>

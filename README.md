@@ -8,6 +8,7 @@ A aplicação em uso combina React, Vercel Functions, Supabase Postgres/Realtime
 - **Instalação do acesso:** [ADMIN-SETUP.md](docs/ADMIN-SETUP.md).
 - **Criar contas, definir permissões e transferir salas:** [SUPER-ADMIN.md](docs/SUPER-ADMIN.md), pela área `/admin/management` exclusiva do Caio.
 - **Tutorial para enviar aos organizadores:** [guia online](public/guia-admin.html) e [PDF](public/guia-admin.pdf), publicados em `/guia-admin.html` e `/guia-admin.pdf`.
+- **Piloto em vídeo da criação completa:** [roteiro, fontes e reprodução](media/tutorials/scrim-main-loop/README.md), com página de revisão em `/pilotos/criar-scrim.html`.
 - **Partidas pela API:** [importação de customizadas](docs/MATCH-IMPORT.md).
 - **Foco e sorteios compartilhados:** [ROOM-TOOLS.md](docs/ROOM-TOOLS.md).
 - **Identidade Brasa, home VCT e fixação de destaque:** [BRASA-VCT.md](docs/BRASA-VCT.md).

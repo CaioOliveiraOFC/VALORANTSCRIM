@@ -90,6 +90,10 @@
       "destination": "/guia-admin.pdf"
     },
     {
+      "source": "/pilotos/:path*",
+      "destination": "/pilotos/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
