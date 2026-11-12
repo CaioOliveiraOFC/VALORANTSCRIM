@@ -1,24 +1,28 @@
+@import url('/brand/fonts/fonts.css');
+
 :root {
-  --bg: #0f1923;
-  --surface: #17232f;
-  --surface-2: #1f2e3c;
-  --border: #2c3e50;
-  --text: #ece8e1;
-  --muted: #8b978f;
-  --accent: #ff4655;
-  --team-a: #4fd1c5;
-  --team-b: #ff7a85;
+  --bg: #100f0e;
+  --surface: #1d1a17;
+  --surface-2: #29231d;
+  --border: #4b3d30;
+  --text: #f4ece0;
+  --muted: #b5a89b;
+  --accent: #ff7a18;
+  --team-a: #f1c67c;
+  --team-b: #9dbac4;
   --atk: #ff9f43;
-  --def: #54a0ff;
-  --ok: #3ddc84;
+  --def: #9dbac4;
+  --ok: #bdd1a2;
+  --danger: #ffb4a0;
   --radius: 10px;
+  --display-font: 'Barlow Condensed', 'Arial Narrow', sans-serif;
   color-scheme: dark;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Source Sans 3', 'Segoe UI', sans-serif;
 }
 
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.45; }
-h1, h2 { margin: 0 0 0.5rem; line-height: 1.2; }
+h1, h2, h3 { font-family: var(--display-font); font-weight: 600; margin: 0 0 0.5rem; line-height: 1.2; }
 h1 { font-size: clamp(1.5rem, 4vw, 2.2rem); letter-spacing: 0.02em; }
 h2 { font-size: 1.1rem; }
 a { color: inherit; }
@@ -34,20 +38,20 @@ a { color: inherit; }
 .small { font-size: 0.85rem; }
 .big { font-size: 1.3rem; }
 .accent { color: var(--accent); }
-.error { color: var(--accent); }
+.error { color: var(--danger); }
 .warn { color: var(--atk); }
 
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
 .callout { border-left: 3px solid var(--accent); background: var(--surface-2); padding: 10px 14px; border-radius: 6px; margin: 0 0 16px; }
 
-button, .button, input {
+button, .button, input, select, textarea {
   font: inherit; color: inherit; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-2);
   padding: 8px 12px;
 }
 button, .button { cursor: pointer; text-decoration: none; white-space: nowrap; }
 button:hover:not(:disabled), .button:hover { border-color: var(--muted); }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
-button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+button.primary, .button.primary { background: var(--accent); border-color: var(--accent); color: #1a1008; font-weight: 600; }
 button.ghost { background: transparent; }
 input { width: 100%; background: var(--bg); }
 input[type='radio'] { position: absolute; opacity: 0; pointer-events: none; }
@@ -56,7 +60,7 @@ label { display: grid; gap: 4px; }
 
 .segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; padding: 2px; margin: 0; gap: 2px; }
 .segmented label { display: block; padding: 6px 12px; border-radius: 4px; cursor: pointer; position: relative; }
-.segmented label.on { background: var(--accent); color: #fff; }
+.segmented label.on { background: var(--accent); color: #1a1008; }
 .segmented label:focus-within { outline: 2px solid var(--accent); }
 
 .hero { margin-bottom: 24px; }
@@ -142,7 +146,7 @@ button.map-card:hover { border-color: var(--accent); }
 .map-tabs button.on { border-color: var(--accent); }
 
 .scoreboard { background-size: cover; background-position: center; padding: 0; overflow: hidden; }
-.scoreboard-inner { background: rgb(15 25 35 / 0.86); padding: 16px; display: grid; gap: 12px; }
+.scoreboard-inner { background: rgb(16 15 14 / 0.9); padding: 16px; display: grid; gap: 12px; }
 .score-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .score-team { display: grid; justify-items: center; gap: 6px; padding: 12px; border-radius: 8px; border-top: 3px solid var(--team); background: rgb(0 0 0 / 0.25); }
 .score-team.won { box-shadow: inset 0 0 0 2px var(--ok); }
@@ -154,7 +158,7 @@ button.map-card:hover { border-color: var(--accent); }
 .side.side-def { color: var(--def); border: 1px solid var(--def); }
 
 .round-strip { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 4px; }
-.round { position: relative; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 4px; font-size: 0.75rem; font-weight: 700; background: var(--team); color: #0f1923; }
+.round { position: relative; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 4px; font-size: 0.75rem; font-weight: 700; background: var(--team); color: #100f0e; }
 .round.half { margin-left: 10px; }
 .round .dot { position: absolute; top: 2px; right: 2px; width: 6px; height: 6px; border-radius: 50%; background: #fff; }
 .notes { margin: 8px 0 0; padding-left: 1.2rem; display: grid; gap: 4px; }

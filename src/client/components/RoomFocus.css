@@ -1,7 +1,7 @@
 .room-focus-highlight {
   outline: 3px solid var(--team-a) !important;
   outline-offset: 5px;
-  box-shadow: 0 0 0 8px rgb(79 209 197 / 0.08);
+  box-shadow: 0 0 0 8px rgb(241 198 124 / 0.12);
   border-radius: var(--radius);
   scroll-margin-block: 32px;
 }

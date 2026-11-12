@@ -4,10 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark light">
+  <link rel="icon" href="/brand/brasa-symbol.svg">
+  <link rel="stylesheet" href="/brand/fonts/fonts.css">
   <meta name="description" content="Guia para entrar como administrador, organizar os times, escolher os mapas e importar uma scrim de VALORANT.">
-  <title>Guia do administrador · VALORANT Scrims</title>
+  <title>Guia do administrador · Brasa</title>
   <style>
-    :root { --bg:#0f1923; --panel:#17232f; --panel-2:#1f2e3c; --line:#344958; --text:#ece8e1; --muted:#adb8bb; --accent:#64c5c4; --action:#b23f4b; color-scheme:dark; font-family:Arial,Helvetica,sans-serif; }
+    :root { --bg:#100f0e; --panel:#1d1a17; --panel-2:#29231d; --line:#4b3d30; --text:#f4ece0; --muted:#b5a89b; --accent:#f1c67c; --action:#ff7a18; color-scheme:dark; font-family:'Source Sans 3',Arial,sans-serif; }
     * { box-sizing:border-box; }
     html { scroll-behavior:smooth; }
     body { margin:0; background:var(--bg); color:var(--text); font-size:16px; line-height:1.65; }
@@ -27,7 +29,7 @@
     .sheet { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:36px 38px; margin:0 0 24px; scroll-margin-top:24px; }
     .sheet-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; gap:16px; color:var(--muted); font-size:12px; }
     .sheet-head strong { color:var(--text); font-size:12px; }
-    h1,h2,h3 { line-height:1.15; letter-spacing:-.025em; margin:0; }
+    h1,h2,h3 { font-family:'Barlow Condensed','Arial Narrow',sans-serif; line-height:1.15; letter-spacing:-.025em; margin:0; }
     h1 { font-size:clamp(30px,4vw,42px); max-width:17ch; margin-bottom:18px; }
     h2 { font-size:29px; margin-bottom:15px; }
     h3 { font-size:19px; margin:24px 0 10px; }
@@ -38,7 +40,7 @@
     .role strong { display:block; font-size:17px; margin-bottom:7px; }
     .role p { color:var(--muted); font-size:14px; margin:0; }
     .role.admin { border-top:3px solid var(--accent); }
-    .role.viewer { border-top:3px solid #798c9b; }
+    .role.viewer { border-top:3px solid #b5a89b; }
     .steps { margin:18px 0 0; padding-left:25px; }
     .steps>li { padding-left:6px; margin:0 0 16px; }
     .steps>li::marker { color:var(--accent); font-weight:700; }
@@ -64,7 +66,7 @@
     .faq dd { margin:0; font-size:14px; color:var(--muted); }
     .actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:25px; }
     .button,button { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:10px 17px; border:1px solid var(--line); border-radius:7px; color:var(--text); background:var(--panel-2); font:700 14px Arial,Helvetica,sans-serif; cursor:pointer; text-decoration:none; }
-    .button.primary { background:var(--action); border-color:var(--action); }
+    .button.primary { color:#1a1008; background:var(--action); border-color:var(--action); }
     .print-only { display:none; }
     .page-number { color:var(--muted); white-space:nowrap; }
     .footer-note { margin:24px 0 0; border-top:1px solid var(--line); padding-top:13px; color:var(--muted); font-size:12px; }
@@ -74,7 +76,7 @@
     @media(prefers-reduced-motion:reduce) { html{scroll-behavior:auto} }
     @page { size:A4; margin:15mm 17mm 14mm; }
     @media print {
-      :root { --bg:#fff;--panel:#fff;--panel-2:#f1f5f7;--line:#cad5dc;--text:#142538;--muted:#4e6170;--accent:#126b78;--action:#126b78;color-scheme:light; }
+      :root { --bg:#fff;--panel:#fff;--panel-2:#f5f0e7;--line:#d8cbb9;--text:#2e241a;--muted:#5e5144;--accent:#8d420e;--action:#8d420e;color-scheme:light; }
       body { font-size:10.5pt; line-height:1.46; background:#fff; }
       .topbar,.toc,.screen-only { display:none!important; }
       .print-only { display:block; }
@@ -105,18 +107,18 @@
       a { color:var(--text);text-decoration:none; }
       .button { border:0;padding:0;min-height:0;display:inline;color:var(--text);background:none; }
       .actions { display:none; }
-      code { background:#f1f5f7; }
+      code { background:#f5f0e7; }
       p,li,dt,dd,.role,.callout,.pair { orphans:3;widows:3;break-inside:avoid; }
     }
   </style>
 </head>
 <body>
-  <header class="topbar"><a class="brand" href="/">VALORANT Scrims</a><nav aria-label="Ações do guia"><a href="/admin">Área do administrador</a><a href="/guia-admin.pdf" download>Baixar PDF</a><a href="/">Voltar às salas</a></nav></header>
+  <header class="topbar"><a class="brand" href="/"><img src="/brand/brasa-symbol.svg" width="30" height="34" alt="" style="vertical-align:middle;margin-right:8px">Brasa</a><nav aria-label="Ações do guia"><a href="/admin">Minha organização</a><a href="/guia-admin.pdf" download>Baixar PDF</a><a href="/">Voltar à Brasa</a></nav></header>
   <div class="layout">
     <aside class="toc" aria-label="Índice"><p>Guia do administrador</p><ol><li><a href="#comeco">Comece por aqui</a></li><li><a href="#preparar">Entrar, criar e montar times</a></li><li><a href="#mapas">Escolher mapas e chamar a sala</a></li><li><a href="#resultado">Trazer o resultado</a></li><li><a href="#finalizar">Finalizar e resolver dúvidas</a></li></ol><small>Use o PDF para mandar este passo a passo aos organizadores.</small></aside>
     <main>
       <section class="sheet" id="comeco" aria-labelledby="title-comeco">
-        <div class="sheet-head"><strong>VALORANT Scrims · Guia do administrador</strong><span class="page-number">1 / 5</span></div>
+        <div class="sheet-head"><strong>Brasa · Guia do administrador</strong><span class="page-number">1 / 5</span></div>
         <h1 id="title-comeco">Organize a scrim e vá jogar.</h1>
         <p class="lead">Você cuida da sala. Os jogadores acompanham pelo link e entram no VALORANT para jogar.</p>
         <div class="roles">

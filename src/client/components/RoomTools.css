@@ -1,13 +1,13 @@
 .room-tools {
-  --room-stage: var(--surface-2, #1f2e3c);
-  --room-panel: var(--surface, #17232f);
-  --room-secondary: #a6b1af;
+  --room-stage: var(--surface-2, #3c3227);
+  --room-panel: var(--surface, #2f271f);
+  --room-secondary: #b1aca6;
   margin: 0 0 16px;
 }
 .room-tools-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .room-tools-toolbar > button, .room-tools-menu > button { min-height: 42px; font-size: .88rem; }
 .room-tools-focus { display: inline-flex; align-items: center; gap: 9px; }
-.room-tools-focus > span { color: var(--team-a, #4fd1c5); font-size: 1.15rem; line-height: 1; }
+.room-tools-focus > span { color: var(--team-a, #f1c67c); font-size: 1.15rem; line-height: 1; }
 .room-tools-menu { position: relative; }
 .room-tools-menu > button { display: flex; align-items: center; gap: 14px; }
 .room-tools-menu-items { position: absolute; top: calc(100% + 8px); left: 0; width: 260px; z-index: 15; padding: 6px; background: var(--room-panel); border: 1px solid var(--border); border-radius: 9px; box-shadow: 0 10px 30px #0004; }
@@ -16,51 +16,51 @@
 .room-tools-menu-items small { color: var(--room-secondary); font-size: .76rem; font-weight: 400; }
 .room-tools-menu-items > p { font-size: .76rem; line-height: 1.5; color: var(--room-secondary); padding: 8px 12px; margin: 0; }
 .room-tools-notice { overflow-wrap: anywhere; color: var(--room-secondary); font-size: .85rem; margin: 12px 0 0; max-width: 80ch; }
-.room-tools-error { color: #ffabb2; background: #3b222c; border: 1px solid #73424f; border-radius: 7px; padding: 11px 13px; font-size: .85rem; line-height: 1.5; margin: 14px 0 0; overflow-wrap: anywhere; }
+.room-tools-error { color: #ffb4a0; background: #3b251e; border: 1px solid #80503d; border-radius: 7px; padding: 11px 13px; font-size: .85rem; line-height: 1.5; margin: 14px 0 0; overflow-wrap: anywhere; }
 .room-tools-backdrop {
-  --room-stage: var(--surface-2, #1f2e3c);
-  --room-panel: var(--surface, #17232f);
-  --room-secondary: #a6b1af;
-  position: fixed; inset: 0; z-index: 100; overflow-y: auto; overscroll-behavior: contain; padding: 32px 20px; display: flex; align-items: center; justify-content: center; background: #060c12d6; backdrop-filter: blur(5px);
+  --room-stage: var(--surface-2, #3c3227);
+  --room-panel: var(--surface, #2f271f);
+  --room-secondary: #b1aca6;
+  position: fixed; inset: 0; z-index: 100; overflow-y: auto; overscroll-behavior: contain; padding: 32px 20px; display: flex; align-items: center; justify-content: center; background: #080705d6; backdrop-filter: blur(5px);
 }
-.room-tools-dialog { width: min(100%, 680px); margin: auto; padding: 32px; background: var(--room-panel); border: 1px solid #40505f; border-radius: 16px; box-shadow: 0 24px 100px #0007; color: var(--text); }
+.room-tools-dialog { width: min(100%, 680px); margin: auto; padding: 32px; background: var(--room-panel); border: 1px solid #5f5140; border-radius: 16px; box-shadow: 0 24px 100px #0007; color: var(--text); }
 .room-tools-dialog:focus { outline: none; }
-.room-tools-dialog :is(button, textarea):focus-visible { outline: 3px solid var(--team-a, #4fd1c5); outline-offset: 3px; }
+.room-tools-dialog :is(button, textarea):focus-visible { outline: 3px solid var(--team-a, #f1c67c); outline-offset: 3px; }
 .room-tools-dialog h2 { margin: 0 0 12px; font-size: clamp(1.4rem, 3vw, 1.8rem); line-height: 1.2; letter-spacing: -.02em; }
 .room-draw-room-name { display: block; margin-bottom: 12px; color: var(--room-secondary); font-size: .78rem; overflow-wrap: anywhere; }
 .room-draw-purpose { font-size: 1rem; line-height: 1.6; margin: 0; color: var(--text); max-width: 65ch; overflow-wrap: anywhere; }
 .room-draw-stage { padding: 32px 0 0; }
 .room-draw-captains { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.room-draw-slot { --slot-color: var(--team-a, #4fd1c5); text-align: center; padding: 20px 16px 26px; border-radius: 8px; border-top: 3px solid var(--slot-color); background: var(--room-stage); min-width: 0; }
-.room-draw-slot-B { --slot-color: var(--team-b, #ff7a85); }
+.room-draw-slot { --slot-color: var(--team-a, #f1c67c); text-align: center; padding: 20px 16px 26px; border-radius: 8px; border-top: 3px solid var(--slot-color); background: var(--room-stage); min-width: 0; }
+.room-draw-slot-B { --slot-color: var(--team-b, #9dbac4); }
 .room-draw-team-name { display: block; font-size: .9rem; color: var(--slot-color); font-weight: 650; overflow-wrap: anywhere; }
 .room-draw-slot-caption { display: block; font-size: .73rem; color: var(--room-secondary); margin-top: 5px; }
 .room-draw-name { display: block; font-size: clamp(1.7rem, 4.3vw, 2.9rem); line-height: 1.12; min-height: 2.25em; margin-top: 20px; overflow-wrap: anywhere; letter-spacing: -.035em; display: flex; align-items: center; justify-content: center; }
-.room-draw-stage.is-spinning .room-draw-name { color: #bac7d0; filter: blur(.3px); }
+.room-draw-stage.is-spinning .room-draw-name { color: #d0c6ba; filter: blur(.3px); }
 .room-draw-stage.is-revealed .room-draw-slot { border-color: var(--slot-color); }
 .room-draw-stage.is-revealed .room-draw-name { animation: room-draw-land 240ms ease-out both; }
 .room-draw-result-label { margin: 22px 0 0; text-align: center; font-size: .9rem; font-weight: 600; }
 .room-coin-stage { perspective: 900px; }
-.room-draw-coin { width: 150px; height: 150px; margin: 0 auto; border: 6px double #bc9d6e; border-radius: 50%; background: #282f35; color: #e0c494; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 0 8px #1e252b; font-size: 1.8rem; font-weight: 750; letter-spacing: -.03em; }
+.room-draw-coin { width: 150px; height: 150px; margin: 0 auto; border: 6px double #bc9d6e; border-radius: 50%; background: #352f28; color: #e0c494; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 0 8px #2b251e; font-size: 1.8rem; font-weight: 750; letter-spacing: -.03em; }
 .room-coin-stage.is-spinning .room-draw-coin { animation: room-coin-turn 4s cubic-bezier(.15,.4,.35,1) both; }
 .room-draw-stage.is-revealed .room-draw-coin { animation: room-draw-land 240ms ease-out both; }
 .room-draw-motion-alternative { display: none; }
 .room-draw-status { display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 16px; }
 .room-draw-status p { font-size: .82rem; color: var(--room-secondary); margin: 0; line-height: 1.6; text-align: center; }
 .room-draw-status-dot { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: #d4b47e; }
-.room-draw-status-dot.ready { background: var(--team-a, #4fd1c5); }
+.room-draw-status-dot.ready { background: var(--team-a, #f1c67c); }
 .room-draw-effect { font-size: .8rem; line-height: 1.65; color: var(--room-secondary); margin: 22px 0 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: 7px; }
 .room-draw-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--border); }
 .room-draw-actions button { min-height: 44px; font-size: .9rem; padding: 11px 17px; white-space: normal; }
-.room-draw-actions button.primary { background: #b73c4a; border-color: #b73c4a; color: #fff5f4; }
-.room-draw-actions button.primary:hover:not(:disabled) { background: #c34351; border-color: #c34351; }
+.room-draw-actions button.primary { background: #ff7a18; border-color: #ff7a18; color: #1a1008; }
+.room-draw-actions button.primary:hover:not(:disabled) { background: #ff913e; border-color: #ff913e; }
 .room-draw-setup-description { color: var(--room-secondary); font-size: .9rem; line-height: 1.65; margin: 0 0 22px; max-width: 65ch; }
 .room-draw-candidates { display: flex; flex-wrap: wrap; gap: 7px; margin: 20px 0; }
 .room-draw-candidates > span { font-size: .82rem; border: 1px solid var(--border); padding: 6px 10px; border-radius: 5px; background: var(--room-stage); overflow-wrap: anywhere; max-width: 100%; }
 .room-draw-setup .room-draw-effect { margin: 0 0 22px; }
 .room-draw-setup label { font-size: .85rem; font-weight: 600; gap: 8px; }
-.room-draw-setup textarea { resize: vertical; width: 100%; min-height: 100px; max-height: 220px; font: inherit; font-size: 1rem; line-height: 1.5; color: var(--text); background: var(--bg); border: 1px solid #526575; border-radius: 7px; padding: 12px; }
-.room-draw-setup textarea::placeholder { color: #9aa8af; }
+.room-draw-setup textarea { resize: vertical; width: 100%; min-height: 100px; max-height: 220px; font: inherit; font-size: 1rem; line-height: 1.5; color: var(--text); background: var(--bg); border: 1px solid #756552; border-radius: 7px; padding: 12px; }
+.room-draw-setup textarea::placeholder { color: #afa59a; }
 .room-draw-setup-hint { font-size: .78rem; color: var(--room-secondary); line-height: 1.65; margin: 12px 0 0; }
 @keyframes room-coin-turn { 0% { transform: rotateY(0deg) translateY(0); } 24% { transform: rotateY(960deg) translateY(-15px); } 74% { transform: rotateY(2400deg) translateY(-4px); } 100% { transform: rotateY(2880deg) translateY(0); } }
 @keyframes room-draw-land { from { transform: translateY(-4px); opacity: .65; } to { transform: translateY(0); opacity: 1; } }

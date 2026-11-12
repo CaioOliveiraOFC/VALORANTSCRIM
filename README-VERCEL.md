@@ -68,3 +68,13 @@ A aba Partida permite importar resultados da HenrikDev e associar jogadores por 
 A barra da sala permite chamar os espectadores para a aba/mapa/seção atual e abrir sorteios de capitães da lista geral ou cara ou coroa com motivo. Todos recebem a mesma apresentação; o admin aceita ou descarta o resultado. Aceitar capitães inicia os dois times com eles, e o sorteio posterior dos times mantém os capitães. Tentativas e decisões ficam no histórico e no relatório.
 
 Foco e sorteios usam o log de eventos existente. O controle atual de acesso às salas exige também `20261105_super_admin.sql`, após `20261104_room_access.sql`, sem nova variável de ambiente. Foco e sorteios respeitam propriedade e capacidades. Consulte [ROOM-TOOLS.md](docs/ROOM-TOOLS.md) para regras, testes e roteiro de avaliação no Preview.
+
+
+## Identidade Brasa e destaque VCT
+
+A home apresenta as salas públicas reais e prioriza o VCT. O modo automático
+funciona com as migrações existentes. Para permitir que o Caio fixe uma sala,
+aplique uma vez `supabase/migrations/20261112_home_feature.sql`, após a atualização
+de super admin. Nenhuma variável nova é necessária; salas e eventos são preservados.
+O controle fica em Administração → Todas as salas → VCT em destaque na home.
+Consulte [BRASA-VCT.md](docs/BRASA-VCT.md) para funcionamento e validação.

@@ -44,6 +44,9 @@ let deleteBeforeAppend = false;
 const accessMutations: Record<string, unknown>[] = [];
 const ADMIN_ID = '11111111-1111-4111-8111-111111111111';
 
+let homeFeature = { roomId: null as string | null, version: 1 };
+let missingHomeFeature = false;
+const homeMutations: Record<string, unknown>[] = [];
 function call(path: string, method = 'GET', body?: unknown, headers: Record<string, string> = {}): Promise<{status: number; body: any; text: string; headers: http.IncomingHttpHeaders}> {
   return new Promise((resolve, reject) => {
     const req = http.request({hostname: '127.0.0.1', port, path, method, headers: {'content-type':'application/json', ...headers}}, (res) => {
@@ -77,6 +80,7 @@ beforeAll(async () => {
 });
 afterAll(async () => { await new Promise<void>((resolve,reject) => server.close((e) => e ? reject(e) : resolve())); });
 beforeEach(() => {
+  homeFeature = { roomId: null, version: 1 }; missingHomeFeature = false; homeMutations.length = 0;
   rows.clear(); policyCalls.length=0; appendMutations.length=0; ownerMutations.length=0; adminPermissions=presetPermissions('full'); missingPolicyRpc=false; revokeBeforeAppend=false; resetBeforeAppend=false; adminSessionVersion=0; transferBeforeAppend=false; dbCalls.length=0; authCalls.length=0; adminEnabled=true; adminCanDelete=false; accessConflict=false; missingAccessColumns=false; missingAccessRpc=false; deleteBeforeAppend=false; accessMutations.length=0; casConflict=false; lookupAllowed=true; providerCalls=0;
   vi.stubEnv('HENRIK_API_KEY','provider-test-key');
   vi.stubEnv('SUPABASE_URL','https://test.supabase.co');
@@ -123,6 +127,19 @@ beforeEach(() => {
     dbCalls.push(u.pathname+u.search);
     const payload=options.body ? JSON.parse(String(options.body)) : null;
     const ok=(body:unknown)=>new Response(body===null ? null : JSON.stringify(body),{status:body===null?204:200});
+    if (['/rest/v1/rpc/get_public_home_feature','/rest/v1/rpc/get_home_feature_admin','/rest/v1/rpc/set_home_feature'].includes(u.pathname)) {
+      if (missingHomeFeature) return new Response(JSON.stringify({code:'PGRST202',message:'RPC missing'}), {status:404});
+      if (u.pathname.endsWith('/get_public_home_feature')) {
+        const pinned = homeFeature.roomId ? rows.get(homeFeature.roomId) : null;
+        return ok({roomId:pinned?.is_public && pinned.deleted_at===null ? pinned.id : null});
+      }
+      if (u.pathname.endsWith('/get_home_feature_admin')) return ok(homeFeature);
+      homeMutations.push(payload);
+      if (payload.p_expected_version !== homeFeature.version) return new Response(JSON.stringify({message:'STALE_HOME_FEATURE'}), {status:400});
+      const target = payload.p_scrim_id ? rows.get(payload.p_scrim_id) : null;
+      if (payload.p_scrim_id && (!target?.is_public || target.deleted_at!==null)) return new Response(JSON.stringify({message:'ROOM_NOT_PUBLIC'}), {status:400});
+      homeFeature = {roomId:payload.p_scrim_id,version:homeFeature.version+1}; return ok(homeFeature);
+    }
     if (u.pathname.endsWith('/scrims') && missingAccessColumns && u.searchParams.get('select')?.includes('is_public')) return new Response(JSON.stringify({ code: '42703', message: 'column is_public does not exist' }), { status: 400 });
     if (u.pathname.endsWith('/rpc/create_owned_scrim')) {
       if (missingAccessRpc) return new Response(JSON.stringify({ code: 'PGRST202', message: 'RPC missing' }), { status: 404 });
@@ -933,4 +950,38 @@ describe('scoped administrator permissions and ownership', () => {
     const result=await adminCall(`/api/scrims/${id}/command`,'POST',{command:{type:'note.add',text:'Must not commit'}});
     expect(result.status).toBe(403);expect(row.version).toBe(previousVersion);expect(row.events).toHaveLength(1);
   });
+});
+
+
+it('only the verified super admin can read or change a home pin', async () => {
+  expect((await viewerCall('/api/admin/home-feature')).status).toBe(403);
+  expect((await adminCall('/api/admin/home-feature')).status).toBe(403);
+  expect((await adminCall('/api/admin/home-feature','PUT',{roomId:null,expectedVersion:1})).status).toBe(403);
+  expect(homeMutations).toHaveLength(0);
+  expect((await superCall('/api/admin/home-feature')).body).toEqual({roomId:null,version:1});
+});
+it('pins a public room through owner RPC, publishes only its safe identifier and clears it', async () => {
+  const created=await adminCall('/api/scrims','POST',{title:'Vitrine',format:'bo3',isPublic:true});
+  expect(created.status).toBe(201); const id=created.body.id;
+  expect((await superCall('/api/admin/home-feature','PUT',{roomId:id,expectedVersion:1})).body).toEqual({roomId:id,version:2});
+  expect(homeMutations[0]).toMatchObject({p_actor_id:SUPER_ID,p_actor_session_version:0,p_expected_version:1,p_scrim_id:id});
+  expect((await viewerCall('/api/home/featured')).body).toEqual({roomId:id});
+  rows.get(id)!.is_public=false;
+  expect((await viewerCall('/api/home/featured')).body).toEqual({roomId:null});
+  expect((await superCall('/api/admin/home-feature','PUT',{roomId:null,expectedVersion:2})).body).toEqual({roomId:null,version:3});
+});
+it('rejects hidden selections, unknown fields, cross-origin writes and stale home versions', async () => {
+  const created=await adminCall('/api/scrims','POST',{title:'Oculta',format:'bo3'});
+  expect((await superCall('/api/admin/home-feature','PUT',{roomId:created.body.id,expectedVersion:1})).status).toBe(400);
+  expect((await superCall('/api/admin/home-feature','PUT',{roomId:null,expectedVersion:1,actorId:SUPER_ID})).status).toBe(400);
+  expect((await call('/api/admin/home-feature','PUT',{roomId:null,expectedVersion:1},{cookie:`${ADMIN_ACCESS_COOKIE}=${SUPER_TOKEN}`,origin:'https://evil.example'})).status).toBe(403);
+  expect((await superCall('/api/admin/home-feature','PUT',{roomId:null,expectedVersion:9})).status).toBe(409);
+});
+it('keeps automatic public selection available before the optional home migration', async () => {
+  missingHomeFeature=true;
+  expect((await viewerCall('/api/home/featured')).body).toEqual({roomId:null});
+  expect(authCalls).toHaveLength(0);
+  const admin=await superCall('/api/admin/home-feature');
+  expect(admin.status).toBe(503);expect(admin.body.error).toContain('20261112_home_feature.sql');
+  expect((await viewerCall('/api/scrims')).status).toBe(200);
 });

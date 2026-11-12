@@ -1,47 +1,47 @@
 .super-admin { max-width: 1132px; }
 .super-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin: 14px 0 25px; }
 .super-heading h1 { margin: 0 0 12px; font-size: 36px; letter-spacing: -.025em; }
-.super-heading p, .super-section-heading p { max-width: 66ch; color: #acb9bb; margin: 0; font-size: 14px; line-height: 1.65; }
-.super-owner-badge { color: #8dd9cf; background: #163235; border: 1px solid #355954; border-radius: 5px; padding: 7px 10px; font-size: 11px; white-space: nowrap; }
+.super-heading p, .super-section-heading p { max-width: 66ch; color: #bbb4ac; margin: 0; font-size: 14px; line-height: 1.65; }
+.super-owner-badge { color: #d9b68d; background: #352c22; border: 1px solid #594b3a; border-radius: 5px; padding: 7px 10px; font-size: 11px; white-space: nowrap; }
 .super-tabs { display: flex; gap: 22px; border-bottom: 1px solid var(--border); margin-bottom: 28px; }
-.super-tabs > button { border: 0; border-bottom: 3px solid transparent; padding: 13px 0; border-radius: 0; background: transparent; color: #aebfc3; font-size: 14px; font-weight: 600; }
+.super-tabs > button { border: 0; border-bottom: 3px solid transparent; padding: 13px 0; border-radius: 0; background: transparent; color: #c3b9ae; font-size: 14px; font-weight: 600; }
 .super-tabs > button[aria-selected='true'] { color: var(--text); border-bottom-color: var(--team-a); }
 .super-workspace { display: grid; gap: 20px; min-width: 0; }
 .super-section-heading { display: flex; justify-content: space-between; align-items: center; gap: 22px; }
 .super-section-heading h2 { margin: 0 0 9px; font-size: 23px; }
 .super-section-heading > button, .super-section-heading > .button { flex-shrink: 0; min-height: 44px; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; }
-.super-admin button.primary { background: #b73c4a; border-color: #b73c4a; color: #fff5f4; }
-.super-admin button.primary:hover:not(:disabled) { background: #c34351; border-color: #c34351; }
+.super-admin button.primary { background: #ff7a18; border-color: #ff7a18; color: #1a1008; }
+.super-admin button.primary:hover:not(:disabled) { background: #ff913e; border-color: #ff913e; }
 .super-admin :is(input,select,button,a):focus-visible { outline: 3px solid var(--team-a); outline-offset: 3px; }
 .super-admin h2[tabindex='-1']:focus { outline: none; }
 .super-list-card, .super-account-form, .super-credentials { padding: 24px; min-width: 0; }
 .super-list-filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(160px, 210px) auto; gap: 14px; align-items: end; margin-bottom: 22px; }
 .super-admin label { min-width: 0; font-size: 13px; font-weight: 600; line-height: 1.5; }
-.super-admin :is(input,select) { min-width: 0; min-height: 44px; padding: 10px 12px; border-color: #4d626e; color: var(--text); }
+.super-admin :is(input,select) { min-width: 0; min-height: 44px; padding: 10px 12px; border-color: #6e5f4d; color: var(--text); }
 .super-list-filters > button { min-height: 44px; font-size: 13px; }
 .super-list-filters :is(input,select), .super-account-fields input { margin-top: 7px; }
 .super-account-list, .super-room-list { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--border); }
 .super-account-list > li { display: flex; align-items: center; justify-content: space-between; gap: 24px; border-bottom: 1px solid var(--border); padding: 20px 0; }
 .super-person, .super-room-info { display: grid; gap: 6px; min-width: 0; }
 .super-person > strong, .super-room-info > strong { font-size: 15px; line-height: 1.45; overflow-wrap: anywhere; }
-.super-person > span, .super-room-info > span { color: #b4c2c6; font-size: 12px; overflow-wrap: anywhere; }
-.super-person-tags { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 11px; color: #a9b8bd; }
-.super-status { display: inline-flex; justify-self: start; align-items: center; min-height: 24px; padding: 3px 8px; border-radius: 4px; background: var(--surface-2); color: #b6c6cd; font-size: 11px; line-height: 1.4; }
-.super-status.is-active { background: #173739; color: #a0d8cf; }
+.super-person > span, .super-room-info > span { color: #c6beb4; font-size: 12px; overflow-wrap: anywhere; }
+.super-person-tags { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 11px; color: #bdb4a9; }
+.super-status { display: inline-flex; justify-self: start; align-items: center; min-height: 24px; padding: 3px 8px; border-radius: 4px; background: var(--surface-2); color: #cdc2b6; font-size: 11px; line-height: 1.4; }
+.super-status.is-active { background: #393025; color: #d8bea0; }
 .super-status.is-suspended { background: #352a32; color: #e0b5bd; }
 .super-status.is-pending { background: #353124; color: #ded0a2; }
 .super-row-actions { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; flex-shrink: 0; max-width: 58%; }
 .super-row-actions > button, .super-row-actions > .button { font-size: 12px; min-height: 40px; padding: 9px 11px; }
-.super-row-actions > small { color: #a9b9bd; font-size: 12px; }
+.super-row-actions > small { color: #bdb4a9; font-size: 12px; }
 .super-danger-text { color: #f0aab1; }
 .super-admin .super-danger { background: #963a49; border-color: #a94957; color: #fff3f3; }
 .super-admin .super-danger:hover:not(:disabled) { background: #a44050; }
-.super-pagination { display: flex; gap: 16px; align-items: center; justify-content: space-between; margin-top: 20px; font-size: 12px; color: #aebfc3; }
+.super-pagination { display: flex; gap: 16px; align-items: center; justify-content: space-between; margin-top: 20px; font-size: 12px; color: #c3b9ae; }
 .super-pagination > div { display: flex; gap: 9px; }
 .super-pagination button { min-height: 40px; font-size: 12px; }
-.super-account-form { display: grid; gap: 22px; border-color: #426b6a; }
+.super-account-form { display: grid; gap: 22px; border-color: #6b5a46; }
 .super-form-heading h2, .super-credentials h2 { font-size: 23px; margin: 0; line-height: 1.35; }
-.super-form-heading p { color: #aebfc3; font-size: 13px; margin: 8px 0 0; overflow-wrap: anywhere; }
+.super-form-heading p { color: #c3b9ae; font-size: 13px; margin: 8px 0 0; overflow-wrap: anywhere; }
 .super-account-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 .super-password-block { display: grid; gap: 9px; justify-items: start; max-width: 460px; width: 100%; }
 .super-password-block > label { display: grid; gap: 7px; width: 100%; }
@@ -49,7 +49,7 @@
 .super-password-input > input { padding-right: 85px; }
 .super-password-input > button { position: absolute; right: 4px; top: 4px; bottom: 4px; border-color: transparent; padding: 5px 8px; min-width: 66px; font-size: 11px; }
 .super-password-block .super-generate { font-size: 12px; min-height: 38px; }
-.super-help, .super-preset > small { max-width: 75ch; color: #aebcbe; font-size: 12px; line-height: 1.7; font-weight: 400; margin: 0; }
+.super-help, .super-preset > small { max-width: 75ch; color: #beb7ae; font-size: 12px; line-height: 1.7; font-weight: 400; margin: 0; }
 .super-preset { display: grid; gap: 7px; }
 .super-preset > select { max-width: 350px; }
 .super-permissions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 30px; }
@@ -59,15 +59,15 @@
 .super-permission > input[type='checkbox'] { position: static; width: 19px; height: 19px; min-height: 19px; padding: 0; margin: 2px 0 0; flex: 0 0 19px; opacity: 1; pointer-events: auto; accent-color: var(--team-a); }
 .super-permission > span { display: grid; gap: 4px; min-width: 0; }
 .super-permission strong { font-size: 13px; line-height: 1.5; }
-.super-permission small { color: #aebcbe; font-size: 11px; line-height: 1.6; font-weight: 400; }
+.super-permission small { color: #beb7ae; font-size: 11px; line-height: 1.6; font-weight: 400; }
 .super-form-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .super-form-actions button { min-height: 44px; font-size: 13px; }
 .super-error { border: 1px solid #75444e; border-radius: 7px; color: #ffb5bb; background: #35232b; padding: 13px 15px; margin: 0; font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
-.super-notice { color: #b4d9d3; background: #172f34; border-left: 2px solid var(--team-a); padding: 11px 14px; margin: 0; font-size: 13px; line-height: 1.6; }
+.super-notice { color: #d9c8b4; background: #342c22; border-left: 2px solid var(--team-a); padding: 11px 14px; margin: 0; font-size: 13px; line-height: 1.6; }
 .super-load-error { font-size: 13px; line-height: 1.65; color: #ffc0c5; }
 .super-load-error > button { min-height: 40px; font-size: 12px; }
-.super-credentials { border-color: #426b6a; display: grid; gap: 18px; }
-.super-credentials > p { color: #b4c6c7; margin: 0; font-size: 13px; max-width: 70ch; line-height: 1.7; }
+.super-credentials { border-color: #6b5a46; display: grid; gap: 18px; }
+.super-credentials > p { color: #c7beb4; margin: 0; font-size: 13px; max-width: 70ch; line-height: 1.7; }
 .super-credentials > label { display: grid; gap: 7px; max-width: 460px; }
 .super-confirmation { padding: 18px; border: 1px solid #714350; border-radius: 8px; background: #30242d; }
 .super-confirmation h3, .super-transfer h3 { font-size: 16px; margin: 0 0 10px; line-height: 1.5; overflow-wrap: anywhere; }
@@ -79,18 +79,18 @@
 .super-room-controls > label { display: grid; gap: 7px; max-width: 380px; width: 100%; }
 .super-room-list > li { padding: 20px 0; border-bottom: 1px solid var(--border); }
 .super-room-row { display: flex; align-items: center; justify-content: space-between; gap: 22px; }
-.super-room-info > .super-room-owner { color: #c3d2d1; }
-.super-room-info > small { color: #99adb5; font-size: 11px; }
-.super-row-actions > .super-eye { display: grid; place-items: center; min-width: 40px; background: transparent; color: #acbdc5; padding: 8px; }
-.super-eye[aria-pressed='true'] { color: var(--team-a); border-color: #3c6869; background: #173739; }
-.super-transfer { display: grid; gap: 15px; padding: 20px; border: 1px solid #3f6668; border-left: 3px solid var(--team-a); border-radius: 7px; margin-top: 20px; background: var(--bg); }
+.super-room-info > .super-room-owner { color: #d2cbc3; }
+.super-room-info > small { color: #b5a899; font-size: 11px; }
+.super-row-actions > .super-eye { display: grid; place-items: center; min-width: 40px; background: transparent; color: #c5baac; padding: 8px; }
+.super-eye[aria-pressed='true'] { color: var(--team-a); border-color: #695844; background: #393025; }
+.super-transfer { display: grid; gap: 15px; padding: 20px; border: 1px solid #685744; border-left: 3px solid var(--team-a); border-radius: 7px; margin-top: 20px; background: var(--bg); }
 .super-transfer :is(h3,p) { margin: 0; }
 .super-transfer > label { display: grid; gap: 7px; max-width: 560px; }
 .super-room-list .super-confirmation { margin-top: 20px; }
 .super-link-disabled { opacity: .45; cursor: not-allowed; }
 .super-restricted { max-width: 650px; margin: 24px auto; padding: 26px; }
 .super-restricted h1 { font-size: 27px; }
-.super-restricted p { font-size: 14px; line-height: 1.7; color: #acb9bb; max-width: 60ch; }
+.super-restricted p { font-size: 14px; line-height: 1.7; color: #bbb4ac; max-width: 60ch; }
 @media (max-width: 800px) {
   .super-account-list > li, .super-room-row { align-items: flex-start; flex-direction: column; gap: 15px; }
   .super-row-actions { max-width: 100%; width: 100%; justify-content: flex-start; }

@@ -93,3 +93,12 @@ Após instalar a migração, confira com Caio e dois organizadores de teste:
 - Salas restauradas continuam ocultas; espectadores só leem salas publicadas e não excluídas.
 
 Os testes locais usam Auth/REST simulados e Postgres embutido. A validação positiva no serviço hospedado exige aplicar a migração e usar as contas reais do projeto, sem alterar as scrims reais para esse teste.
+
+
+## Escolher o VCT em destaque
+
+Em Administração → Todas as salas, abra **VCT em destaque na home → Configurar**.
+Escolha uma sala publicada ou **Automático**. Apenas o Caio possui essa ação.
+É necessária a instalação única de `20261112_home_feature.sql`.
+Uma sala que se torne oculta ou excluída deixa de ser exposta; a home escolhe outra
+automaticamente. Veja [BRASA-VCT.md](BRASA-VCT.md).
