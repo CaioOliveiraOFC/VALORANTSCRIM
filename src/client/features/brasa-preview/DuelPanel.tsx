@@ -1,5 +1,5 @@
 import { Avatar, Icon } from '../../ui/Icons';
-import { findMatch, roundCount, stageName, type Bracket, type Match } from './model';
+import { findMatch, stageLabel, type Bracket, type Match } from './model';
 
 export function DuelPanel({
   bracket,
@@ -24,7 +24,7 @@ export function DuelPanel({
         </span>
         <span className="br-pill">MD{match.format}</span>
       </div>
-      <h2>{stageName(match.round, roundCount(bracket))}</h2>
+      <h2>{stageLabel(bracket, match.round)}</h2>
       <p className="br-muted">Confronto {match.index + 1}</p>
       <div className="br-duel-contestants">
         {match.players.map((player, index) => (
@@ -59,9 +59,20 @@ export function DuelPanel({
               ? 'Sem adversário nesta fase. Avanço automático.'
               : match.status === 'ready'
                 ? `Melhor de ${match.format}. Aguardando a confirmação do resultado.`
-                : 'Os vencedores da fase anterior entram aqui.'}
+                : 'Aguardando os resultados que definem os participantes.'}
         </p>
       </div>
+      {actionable && bracket.elimination === 'double' && (
+        <p className="br-duel-rule">
+          {match.lane === 'upper'
+            ? bracket.size === 2
+              ? 'Os dois disputam a grande final após este duelo inicial.'
+              : 'Quem perder segue para a lower. A chance continua.'
+            : match.lane === 'lower'
+              ? 'Vale a permanência: quem perder está eliminado.'
+              : 'Série única pelo título. Quem vencer é campeão.'}
+        </p>
+      )}
       {organizer && actionable ? (
         <div className="br-winner-actions">
           <h3>{match.status === 'finished' ? 'Corrigir vencedor' : 'Quem venceu?'}</h3>

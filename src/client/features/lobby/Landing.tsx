@@ -289,8 +289,8 @@ export function X1Page() {
         <br />A resenha continua.
       </h1>
       <p>
-        Estamos preparando os campeonatos X1. A chave interativa já tem uma prévia para você
-        experimentar.
+        Estamos preparando os campeonatos X1. Experimente a chave com eliminação simples ou com
+        upper e lower, em dupla eliminação.
       </p>
       <div className="callout">
         <strong>Prévia com dados de exemplo</strong>
