@@ -58,7 +58,7 @@ function TwitchVideo({
 }
 
 export function StreamPlayer({ broadcast }: { broadcast: Broadcast }) {
-  const [selection, setSelection] = useState("");
+  const [selection, setSelection] = useState(() => broadcast.channels[0]?.channel ?? "");
   const [chatOpen, setChatOpen] = useState(true);
   const channels = broadcast.channels;
   const index = Math.max(
@@ -66,6 +66,11 @@ export function StreamPlayer({ broadcast }: { broadcast: Broadcast }) {
     channels.findIndex((item) => item.channel === selection),
   );
   const current = channels[index];
+  useEffect(() => {
+    // Store both the initial channel and a replacement after removal. An empty
+    // selection would otherwise follow the list order on the next poll.
+    if (current && selection !== current.channel) setSelection(current.channel);
+  }, [current?.channel, selection]);
   if (!broadcast.enabled || !current) return null;
   const embeds = twitchEmbeds(current.channel, location.hostname);
   const move = (offset: number) =>

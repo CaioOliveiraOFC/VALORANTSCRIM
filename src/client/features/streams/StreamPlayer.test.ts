@@ -104,3 +104,13 @@ it("can hide chat without replacing the video and removes all embeds when disabl
   );
   expect(sources()).toHaveLength(0);
 });
+
+it('keeps the initially watched channel across reordering, including after falling back from a removal', () => {
+  act(() => { renderer = create(createElement(StreamPlayer, { broadcast })); });
+  act(() => renderer!.update(createElement(StreamPlayer, { broadcast: { ...broadcast, channels: [...broadcast.channels].reverse() } })));
+  expect(sources().every(src => src.includes('masterpfi'))).toBe(true);
+  act(() => renderer!.update(createElement(StreamPlayer, { broadcast: { ...broadcast, channels: [broadcast.channels[1]!] } })));
+  expect(sources().every(src => src.includes('riotgames'))).toBe(true);
+  act(() => renderer!.update(createElement(StreamPlayer, { broadcast })));
+  expect(sources().every(src => src.includes('riotgames'))).toBe(true);
+});
