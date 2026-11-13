@@ -1,6 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
+    { "source": "/api/streams", "destination": "/api/index?route=streams" },
+    { "source": "/api/admin/streams", "destination": "/api/index?route=admin/streams" },
+    { "source": "/api/scrims/:id/streams", "destination": "/api/index?route=scrims/:id/streams" },
     {
       "source": "/api/admin/home-feature",
       "destination": "/api/index?route=admin/home-feature"

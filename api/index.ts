@@ -11,6 +11,7 @@ import { toMarkdown } from '../src/shared/report.js';
 import { applyEvent, initialState, DomainError, seriesScore, type Command, type ScrimEvent, type ScrimState } from '../src/shared/scrim.js';
 import type { SeriesFormat } from '../src/shared/veto.js';
 import type { RoomAccess, ScrimSummary } from '../src/shared/protocol.js';
+import { normalizeBroadcast } from '../src/shared/streams.js';
 import {
   activeDraw, validateFocusTarget, DRAW_REVEAL_MS, DRAW_TTL_MS, ROOM_FOCUS_TTL_MS,
   type RoomDraw, type RoomToolsEvent,
@@ -23,6 +24,7 @@ const REQUEST_ID_RE = /^[A-Za-z0-9_-]{6,64}$/;
 const MAX_BODY = 16 * 1024;
 const ACCESS_MIGRATION = 'Aplique a migração 20261105_super_admin.sql no Supabase para usar a administração e a propriedade das salas.';
 const HOME_MIGRATION = 'Aplique a migração 20261112_home_feature.sql no Supabase para fixar uma sala na página inicial.';
+const STREAMS_MIGRATION = 'Aplique a migração 20261113_streams.sql no Supabase para configurar as transmissões.';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const hash = (key: string) => createHash('sha256').update(key).digest('hex');
 
@@ -53,6 +55,11 @@ async function db(path: string, options: RequestInit = {}): Promise<any> {
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({})) as { message?: string; code?: string };
+    if (['rpc/get_public_broadcasts', 'rpc/get_room_broadcast', 'rpc/get_admin_broadcasts', 'rpc/set_broadcast'].includes(path)) {
+      if (['PGRST202', '42703', '42P01'].includes(error.code ?? '')) throw new ApiError(503, STREAMS_MIGRATION);
+      if (error.message?.includes('STALE_BROADCAST')) throw new ApiError(409, 'A transmissão mudou em outra aba. Recarregue e revise antes de salvar.');
+      if (error.message?.includes('INVALID_BROADCAST')) throw new ApiError(400, 'Revise o título e os canais da Twitch.');
+    }
     if (['rpc/get_public_home_feature', 'rpc/get_home_feature_admin', 'rpc/set_home_feature'].includes(path) && ['PGRST202', '42703', '42P01'].includes(error.code ?? '')) throw new ApiError(503, HOME_MIGRATION);
     if (error.message?.includes('STALE_HOME_FEATURE')) throw new ApiError(409, 'O destaque mudou em outra aba. Recarregue e revise a seleção.');
     if (error.message?.includes('ROOM_NOT_PUBLIC')) throw new ApiError(400, 'Escolha uma sala publicada e disponível para os espectadores.');
@@ -220,6 +227,14 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     await db('scrims?select=id,is_public,deleted_at,access_version,owner_user_id,created_by_user_id&limit=1');
     return send(res, 200, { ok: true, storage: 'supabase', realtime: 'supabase-postgres-changes' });
   }
+  if (path.length === 1 && path[0] === 'streams' && req.method === 'GET') {
+    try { return send(res, 200, { broadcasts: await db('rpc/get_public_broadcasts', { method: 'POST', body: '{}' }) }); }
+    catch (error) {
+      // A pending migration must not interrupt existing public navigation.
+      if (error instanceof ApiError && error.status === 503 && error.message === STREAMS_MIGRATION) return send(res, 200, { broadcasts: [] });
+      throw error;
+    }
+  }
   if (path.length === 2 && path[0] === 'home' && path[1] === 'featured' && req.method === 'GET') {
     try { return send(res, 200, await db('rpc/get_public_home_feature', { method: 'POST', body: '{}' })); }
     catch (error) {
@@ -229,6 +244,36 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     }
   }
   if (path[0] === 'admin') {
+    if (path.length === 2 && path[1] === 'streams') {
+      const session = await actor();
+      if (!session) throw new ApiError(403, 'Entre como administrador para configurar transmissões.');
+      requirePermission(session, 'editRoom');
+      const identity = { p_actor_id: session.userId, p_actor_session_version: session.sessionVersion };
+      if (req.method === 'GET') return send(res, 200, { broadcasts: await db('rpc/get_admin_broadcasts', { method: 'POST', body: JSON.stringify(identity) }) });
+      if (req.method !== 'PUT') throw new ApiError(405, 'Método não permitido.');
+      assertSameOrigin(req);
+      const input = await jsonBody(req);
+      if (Object.keys(input).some(key => !['roomId', 'expectedVersion', 'title', 'channels', 'enabled', 'promoteHome'].includes(key)) ||
+          !(input.roomId === null || typeof input.roomId === 'string' && ID_RE.test(input.roomId)) ||
+          !Number.isSafeInteger(input.expectedVersion) || (input.expectedVersion as number) < 0 || (input.expectedVersion as number) > 2147483646) throw new ApiError(400, 'Dados da transmissão inválidos.');
+      let config;
+      try { config = normalizeBroadcast(input); } catch (error) { throw new ApiError(400, (error as Error).message); }
+      if (input.roomId === null) {
+        if (!session.isSuperAdmin || config.promoteHome) throw new ApiError(403, 'Somente a conta principal pode configurar uma transmissão independente na página inicial.');
+      } else {
+        const metadata = await roomAccess(input.roomId as string);
+        requireOwnership(metadata, session);
+        if (metadata.deleted_at !== null) throw new ApiError(404, 'Scrim não encontrada.');
+        if (config.promoteHome) {
+          requirePermission(session, 'publishRooms');
+          if (!metadata.is_public) throw new ApiError(400, 'Publique a sala antes de destacá-la na página inicial.');
+        }
+      }
+      return send(res, 200, await db('rpc/set_broadcast', { method: 'POST', body: JSON.stringify({
+        ...identity, p_room_id: input.roomId, p_expected_version: input.expectedVersion,
+        p_title: config.title, p_channels: config.channels, p_enabled: config.enabled, p_promote_home: config.promoteHome,
+      }) }));
+    }
     if (path.length === 2 && path[1] === 'home-feature') {
       const session = await actor();
       if (!session?.isSuperAdmin) throw new ApiError(403, 'Somente a conta principal pode fixar uma sala na página inicial.');
@@ -307,6 +352,18 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
   }
 
   const id = path[1] || '';
+  if (path.length === 3 && path[2] === 'streams' && req.method === 'GET') {
+    const metadata = await roomAccess(id);
+    const session = await actor();
+    requireReadable(metadata, session);
+    try {
+      const broadcast = await db('rpc/get_room_broadcast', { method: 'POST', body: JSON.stringify({ p_room_id: id, p_actor_id: session?.userId ?? null, p_actor_session_version: session?.sessionVersion ?? null }) });
+      return send(res, 200, { broadcasts: broadcast ? [broadcast] : [] });
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 503 && error.message === STREAMS_MIGRATION) return send(res, 200, { broadcasts: [] });
+      throw error;
+    }
+  }
   if (path.length === 3 && (path[2] === 'access' || path[2] === 'session')) {
     const metadata = await roomAccess(id);
     if (path[2] === 'access' && req.method === 'POST') {

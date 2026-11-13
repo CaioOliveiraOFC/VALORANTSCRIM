@@ -11,9 +11,9 @@ function internal(event: MouseEvent<HTMLAnchorElement>) {
   event.preventDefault(); navigate(event.currentTarget.getAttribute('href') ?? '/');
 }
 
-export function AdminPortal() {
+export function AdminPortal({ returnToPath }: { returnToPath?: string } = {}) {
   const auth = useAdminAuth();
-  const returnTo = safeAdminReturnTo(new URLSearchParams(location.search).get('returnTo'));
+  const returnTo = safeAdminReturnTo(returnToPath ?? new URLSearchParams(location.search).get('returnTo'));
   if (auth.status === 'loading') return <main className="page admin-portal"><p className="muted" role="status">Verificando seu acesso…</p></main>;
   if (auth.status === 'error') return <main className="page admin-portal"><section className="card admin-access-error"><h1>Não foi possível verificar o acesso</h1><p className="muted">Confira sua conexão e tente novamente. As salas continuam disponíveis para acompanhar.</p><button type="button" onClick={() => void auth.refresh()}>Verificar novamente</button><a href="/" onClick={internal}>Acompanhar uma sala</a></section></main>;
   return auth.status === 'admin' ? <AdminDashboard returnTo={returnTo} /> : <AdminLogin returnTo={returnTo} />;
@@ -180,6 +180,7 @@ function AdminDashboard({ returnTo }: { returnTo: string }) {
   const visible = rooms?.filter(room => `${room.title} ${room.teams.join(' ')}`.toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR')));
   return <main className="page admin-portal">
     <header className="admin-dashboard-heading"><div><span className="admin-mode-label">Administrador</span><h1>Área do administrador</h1><p className="muted">{auth.isSuperAdmin ? 'Crie a próxima scrim ou administre as salas da comunidade.' : 'Crie a próxima scrim ou continue uma das suas salas.'}</p></div><a href="/guia-admin.html" className="button">Guia do administrador</a></header>
+    {auth.can('editRoom') && <aside className="stream-admin-shortcut"><div><strong>Vai ter transmissão?</strong><p>Adicione os canais da Twitch e escolha onde a galera vai assistir.</p></div><a className="button" href="/admin/lives" onClick={internal}>Configurar transmissões</a></aside>}
     {returnTo !== '/admin' && <p className="admin-return"><a href={returnTo} onClick={internal}>Voltar para a sala que você estava acompanhando</a></p>}
     <div className={`admin-dashboard-grid${canCreateRooms ? '' : ' is-list-only'}`}>
       {canCreateRooms && <form className="card admin-create-form" onSubmit={create}>

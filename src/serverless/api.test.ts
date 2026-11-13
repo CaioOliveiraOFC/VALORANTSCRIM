@@ -7,6 +7,7 @@ import serve from '../../api/index.js';
 import { ADMIN_ACCESS_COOKIE, ADMIN_REFRESH_COOKIE } from './adminAuth.js';
 import { noPermissions, presetPermissions, type AdminPermissionKey, type AdminPermissions } from '../shared/adminPermissions.js';
 import { applyEvent, initialState, type ScrimEvent, type ScrimState } from '../shared/scrim.js';
+import type { Broadcast } from '../shared/streams.js';
 
 type Row = { id: string; admin_key_hash: string; state: ScrimState; version: number; events: ScrimEvent[]; is_public: boolean; deleted_at: number | null; access_version: number; owner_user_id: string; created_by_user_id: string | null };
 const rows = new Map<string, Row>();
@@ -47,6 +48,9 @@ const ADMIN_ID = '11111111-1111-4111-8111-111111111111';
 let homeFeature = { roomId: null as string | null, version: 1 };
 let missingHomeFeature = false;
 const homeMutations: Record<string, unknown>[] = [];
+const broadcasts = new Map<string, Broadcast>();
+let missingStreams = false;
+let streamConflict = false;
 function call(path: string, method = 'GET', body?: unknown, headers: Record<string, string> = {}): Promise<{status: number; body: any; text: string; headers: http.IncomingHttpHeaders}> {
   return new Promise((resolve, reject) => {
     const req = http.request({hostname: '127.0.0.1', port, path, method, headers: {'content-type':'application/json', ...headers}}, (res) => {
@@ -80,6 +84,7 @@ beforeAll(async () => {
 });
 afterAll(async () => { await new Promise<void>((resolve,reject) => server.close((e) => e ? reject(e) : resolve())); });
 beforeEach(() => {
+  broadcasts.clear(); missingStreams = false; streamConflict = false;
   homeFeature = { roomId: null, version: 1 }; missingHomeFeature = false; homeMutations.length = 0;
   rows.clear(); policyCalls.length=0; appendMutations.length=0; ownerMutations.length=0; adminPermissions=presetPermissions('full'); missingPolicyRpc=false; revokeBeforeAppend=false; resetBeforeAppend=false; adminSessionVersion=0; transferBeforeAppend=false; dbCalls.length=0; authCalls.length=0; adminEnabled=true; adminCanDelete=false; accessConflict=false; missingAccessColumns=false; missingAccessRpc=false; deleteBeforeAppend=false; accessMutations.length=0; casConflict=false; lookupAllowed=true; providerCalls=0;
   vi.stubEnv('HENRIK_API_KEY','provider-test-key');
@@ -127,6 +132,17 @@ beforeEach(() => {
     dbCalls.push(u.pathname+u.search);
     const payload=options.body ? JSON.parse(String(options.body)) : null;
     const ok=(body:unknown)=>new Response(body===null ? null : JSON.stringify(body),{status:body===null?204:200});
+    if (['get_public_broadcasts', 'get_room_broadcast', 'get_admin_broadcasts', 'set_broadcast'].some(name => u.pathname.endsWith(`/rpc/${name}`))) {
+      if (missingStreams) return new Response(JSON.stringify({ code: 'PGRST202', message: 'RPC missing' }), { status: 404 });
+      if (u.pathname.endsWith('/get_public_broadcasts')) return ok([...broadcasts.values()].filter(item => item.enabled && (item.roomId === null || item.promoteHome && rows.get(item.roomId)?.is_public && rows.get(item.roomId)?.deleted_at === null)));
+      if (u.pathname.endsWith('/get_admin_broadcasts')) return ok([...broadcasts.values()].filter(item => payload.p_actor_id === SUPER_ID || item.roomId && rows.get(item.roomId)?.owner_user_id === payload.p_actor_id));
+      if (u.pathname.endsWith('/get_room_broadcast')) return ok(broadcasts.get(payload.p_room_id)?.enabled ? broadcasts.get(payload.p_room_id) : undefined);
+      const key = payload.p_room_id ?? 'home';
+      const version = broadcasts.get(key)?.version ?? 0;
+      if (streamConflict || payload.p_expected_version !== version) return new Response(JSON.stringify({ message: 'STALE_BROADCAST' }), { status: 400 });
+      const config: Broadcast = { roomId: payload.p_room_id, title: payload.p_title, channels: payload.p_channels, enabled: payload.p_enabled, promoteHome: payload.p_promote_home, version: version + 1 };
+      broadcasts.set(key, config); return ok(config);
+    }
     if (['/rest/v1/rpc/get_public_home_feature','/rest/v1/rpc/get_home_feature_admin','/rest/v1/rpc/set_home_feature'].includes(u.pathname)) {
       if (missingHomeFeature) return new Response(JSON.stringify({code:'PGRST202',message:'RPC missing'}), {status:404});
       if (u.pathname.endsWith('/get_public_home_feature')) {
@@ -984,4 +1000,44 @@ it('keeps automatic public selection available before the optional home migratio
   const admin=await superCall('/api/admin/home-feature');
   expect(admin.status).toBe(503);expect(admin.body.error).toContain('20261112_home_feature.sql');
   expect((await viewerCall('/api/scrims')).status).toBe(200);
+});
+
+describe('Twitch broadcasts', () => {
+  const config = { roomId: null as string | null, title: 'A resenha do Master', channels: [{ channel: 'https://twitch.tv/masterpfi', label: 'Master' }], enabled: true, promoteHome: false, expectedVersion: 0 };
+  it('requires authenticated room configuration privileges and reserves independent home promotion to the super admin', async () => {
+    expect((await viewerCall('/api/admin/streams')).status).toBe(403);
+    expect((await adminCall('/api/admin/streams', 'PUT', config)).status).toBe(403);
+    adminPermissions.editRoom = false;
+    expect((await adminCall('/api/admin/streams')).status).toBe(403);
+    const result = await superCall('/api/admin/streams', 'PUT', config);
+    expect(result.status).toBe(200);
+    expect(result.body).toMatchObject({ version: 1, channels: [{ channel: 'masterpfi', label: 'Master' }] });
+    expect((await viewerCall('/api/streams')).body.broadcasts).toHaveLength(1);
+  });
+  it('allows an organizer to configure only their own room and refuses anonymous visibility bypasses', async () => {
+    const created = await adminCall('/api/scrims', 'POST', { title: 'VCT', format: 'bo3', isPublic: false });
+    const roomId = created.body.id;
+    expect((await otherCall('/api/admin/streams', 'PUT', { ...config, roomId })).status).toBe(404);
+    expect((await adminCall('/api/admin/streams', 'PUT', { ...config, roomId })).status).toBe(200);
+    expect((await viewerCall(`/api/scrims/${roomId}/streams`)).status).toBe(404);
+    expect((await adminCall(`/api/scrims/${roomId}/streams`)).body.broadcasts).toHaveLength(1);
+    expect((await viewerCall('/api/streams')).body.broadcasts).toEqual([]);
+    const row = rows.get(roomId)!; row.is_public = true;
+    expect((await viewerCall(`/api/scrims/${roomId}/streams`)).body.broadcasts).toHaveLength(1);
+    row.deleted_at = 123;
+    expect((await adminCall(`/api/scrims/${roomId}/streams`)).status).toBe(404);
+  });
+  it('validates URLs, duplicate channels, unknown fields and the mutation origin before writes', async () => {
+    for (const body of [{ ...config, channels: [{ channel: 'https://evil.test/x', label: 'Bad' }] }, { ...config, channels: [...config.channels, ...config.channels] }, { ...config, channels: [] }, { ...config, iframe: 'evil' }]) expect((await superCall('/api/admin/streams', 'PUT', body)).status).toBe(400);
+    expect((await call('/api/admin/streams', 'PUT', config, { cookie: `${ADMIN_ACCESS_COOKIE}=${SUPER_TOKEN}`, origin: 'https://evil.test', host: 'localhost' })).status).toBe(403);
+    expect(broadcasts.size).toBe(0);
+  });
+  it('returns conflicts and a concrete migration error while keeping the public homepage available', async () => {
+    streamConflict = true;
+    expect((await superCall('/api/admin/streams', 'PUT', config)).status).toBe(409);
+    streamConflict = false; missingStreams = true;
+    const response = await superCall('/api/admin/streams');
+    expect(response.status).toBe(503); expect(response.body.error).toContain('20261113_streams.sql');
+    expect((await viewerCall('/api/streams')).body).toEqual({ broadcasts: [] });
+  });
 });

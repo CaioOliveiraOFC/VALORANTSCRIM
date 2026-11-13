@@ -1,0 +1,369 @@
+.stream-home {
+  margin: 48px 0;
+}
+.stream-theater {
+  min-width: 0;
+  padding: 0;
+  background: #14120f;
+  border: 1px solid #4b3c2c;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.stream-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px;
+}
+.stream-heading h2 {
+  margin: 0;
+  font-family: var(--display-font);
+  font-size: 30px;
+  line-height: 1.15;
+}
+.stream-heading p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+.stream-heading button {
+  flex-shrink: 0;
+}
+.stream-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  background: #000;
+}
+.stream-stage.has-chat {
+  grid-template-columns: minmax(0, 1fr) 300px;
+}
+.stream-video {
+  min-width: 0;
+  aspect-ratio: 16 / 9;
+  position: relative;
+}
+.stream-video iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  border: 0;
+}
+.stream-chat {
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+  min-width: 0;
+  border: 0;
+  background: #18181b;
+}
+.stream-switcher {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 24px;
+  border-top: 1px solid #4b3c2c;
+}
+.stream-switcher > button {
+  font-size: 28px;
+  line-height: 1;
+  width: 44px;
+  min-height: 44px;
+  padding: 4px;
+}
+.stream-current {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  width: 190px;
+}
+.stream-current strong {
+  overflow-wrap: anywhere;
+  color: var(--team-a);
+}
+.stream-current span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.stream-switcher > a {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 13px;
+}
+.stream-help {
+  margin: 0;
+  padding: 0 24px 20px;
+  color: var(--muted);
+  font-size: 13px;
+  max-width: 85ch;
+}
+.stream-events {
+  margin-top: 28px;
+}
+.stream-events h2 {
+  font-family: var(--display-font);
+  font-size: 28px;
+}
+.stream-events ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+}
+.stream-events li > a {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  padding: 22px 0;
+  border-bottom: 1px solid var(--border);
+  text-decoration: none;
+}
+.stream-events li > a > span:first-child {
+  display: grid;
+  gap: 7px;
+}
+.stream-events strong {
+  font-size: 20px;
+}
+.stream-events small {
+  color: var(--muted);
+}
+.stream-watch-link {
+  color: var(--team-a);
+  white-space: nowrap;
+}
+.stream-room {
+  margin: 20px 0 28px;
+}
+.stream-manage-link {
+  display: inline-block;
+  margin: 14px 0 0;
+  color: var(--team-a);
+  font-size: 14px;
+}
+.stream-admin-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 20px 0 40px;
+}
+.stream-admin-heading h1 {
+  margin: 0;
+  font-family: var(--display-font);
+  font-size: 52px;
+}
+.stream-admin-heading p {
+  color: var(--muted);
+  margin: 8px 0 0;
+  max-width: 65ch;
+}
+.stream-configuration {
+  display: grid;
+  grid-template-columns: 290px minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+.stream-configuration h2 {
+  font-family: var(--display-font);
+  font-size: 28px;
+  margin: 0 0 20px;
+}
+.stream-configuration p {
+  line-height: 1.6;
+}
+.stream-destination {
+  padding: 24px;
+  background: #211c16;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 10px 10px 0;
+}
+.stream-destination p {
+  color: var(--muted);
+  font-size: 14px;
+}
+.stream-configuration label:not(.stream-checkbox) {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+}
+.stream-configuration input:not([type="checkbox"]),
+.stream-configuration select {
+  width: 100%;
+  min-width: 0;
+}
+.stream-channel-editor {
+  min-width: 0;
+}
+.stream-channel-list {
+  padding: 0;
+  margin: 24px 0 16px;
+  list-style: none;
+}
+.stream-channel-list > li {
+  padding: 20px 0;
+  border-top: 1px solid var(--border);
+}
+.stream-channel-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 18px;
+}
+.stream-channel-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  justify-content: flex-end;
+}
+.stream-channel-actions button {
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+.stream-publish {
+  grid-column: 2;
+  border-top: 1px solid var(--border);
+  padding-top: 26px;
+}
+.stream-checkbox {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 22px;
+  cursor: pointer;
+}
+.stream-configuration .stream-checkbox > input[type="checkbox"] {
+  position: static;
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  flex: 0 0 20px;
+  opacity: 1;
+  pointer-events: auto;
+  margin: 3px 0 0;
+  accent-color: var(--accent);
+}
+.stream-checkbox > span {
+  display: grid;
+  gap: 6px;
+}
+.stream-checkbox small {
+  color: var(--muted);
+  line-height: 1.5;
+}
+.stream-save-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 26px 0 14px;
+}
+.stream-notice {
+  color: #cdddac;
+}
+.stream-admin-preview {
+  margin-top: 42px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+.stream-preview-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+.stream-admin-shortcut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin: 0 0 26px;
+  padding: 18px 22px;
+  background: #211c16;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+}
+.stream-admin-shortcut p {
+  color: var(--muted);
+  margin: 4px 0 0;
+  font-size: 14px;
+}
+@media (max-width: 1049px) {
+  .stream-stage.has-chat {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .stream-chat {
+    height: 360px;
+    min-height: 360px;
+    border-top: 1px solid #353538;
+  }
+  .stream-configuration {
+    grid-template-columns: 250px minmax(0, 1fr);
+    gap: 24px;
+  }
+  .stream-channel-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 700px) {
+  .stream-heading {
+    align-items: flex-start;
+    gap: 12px;
+    padding: 18px 16px;
+  }
+  .stream-heading h2 {
+    font-size: 25px;
+    overflow-wrap: anywhere;
+  }
+  .stream-heading p {
+    font-size: 13px;
+  }
+  .stream-heading button {
+    font-size: 12px;
+    padding: 8px;
+    min-height: 40px;
+  }
+  .stream-switcher {
+    padding: 14px 16px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .stream-current {
+    flex: 1;
+    width: auto;
+  }
+  .stream-switcher > a {
+    width: 100%;
+    margin-left: 54px;
+  }
+  .stream-help {
+    padding: 0 16px 18px;
+  }
+  .stream-events li > a {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .stream-admin-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    margin-bottom: 28px;
+  }
+  .stream-admin-heading h1 {
+    font-size: 42px;
+  }
+  .stream-configuration {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .stream-publish {
+    grid-column: 1;
+  }
+  .stream-admin-shortcut {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

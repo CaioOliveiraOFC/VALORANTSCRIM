@@ -14,6 +14,7 @@ import { ReportPanel } from './ReportPanel';
 import { TeamsPanel } from './TeamsPanel';
 import { Timeline } from './Timeline';
 import { VetoPanel } from './VetoPanel';
+import { RoomStreams } from '../features/streams/PublicStreams';
 
 interface RoomCtx {
   importRequest: ReturnType<typeof useScrim>['importRequest'];
@@ -246,6 +247,7 @@ export function ScrimRoom({ scrimId }: { scrimId: string }) {
           {isAdmin ? <><strong>Você está administrando esta sala.</strong> Compartilhe o link da sala com quem vai acompanhar. <a href="/guia-admin.html">Ver o guia do administrador</a></> : auth.status === 'admin' ? <><strong>Você está acompanhando esta sala como espectador.</strong> Seus controles administrativos ficam nas suas salas. <a href="/admin" onClick={event => { event.preventDefault(); navigate('/admin'); }}>Voltar para minhas salas</a></> : <><strong>Você está acompanhando como espectador.</strong> Quem vai organizar pode entrar como admin. <a href={`/admin?returnTo=${encodeURIComponent(`/s/${scrimId}`)}`} onClick={event => { event.preventDefault(); navigate(`/admin?returnTo=${encodeURIComponent(`/s/${scrimId}`)}`); }}>Entrar para organizar</a></>}
         </div>
 
+        <RoomStreams roomId={scrimId} canEdit={can('editRoom')} />
         <RoomTools state={ctx.state} isAdmin={isAdmin} canFocus={can('manageFocus')} canDraw={can('manageDraws')} canManageTeams={can('manageTeams')} request={roomRequest} now={now} onFocusAll={focusEveryone} onBlockingChange={setToolsBlocking} />
 
         <nav className="tabs" role="tablist" aria-label="Navegação da scrim">
