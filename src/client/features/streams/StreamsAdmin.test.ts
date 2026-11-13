@@ -125,6 +125,9 @@ it("hides saved content even with invalid unfinished editor fields, and keeps th
   const state = backend([home]);
   await mount();
   await click(`Editar canais de ${home.title}`);
+  expect(
+    renderer!.root.findByProps({ name: "stream-destination" }).props.disabled,
+  ).toBe(true);
   act(() =>
     named("Canal 1").props.onChange({ target: { value: "invalid/not-saved" } }),
   );

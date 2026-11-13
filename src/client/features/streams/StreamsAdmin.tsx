@@ -370,9 +370,7 @@ function StreamsWorkspace({
           <div className="stream-editor-heading">
             <div>
               <h2 id="stream-editor-title">
-                {version > 0
-                  ? "Editar canais e destino"
-                  : "Adicionar transmissão"}
+                {version > 0 ? "Editar canais" : "Adicionar transmissão"}
               </h2>
               <p>
                 {version > 0
@@ -403,19 +401,27 @@ function StreamsWorkspace({
                 Local da transmissão
                 <select
                   name="stream-destination"
-                  disabled={busy}
+                  disabled={busy || version > 0}
                   value={selected}
                   onChange={(event) => populate(event.target.value, configs)}
                 >
-                  {superAdmin && (
-                    <option value="home">Página inicial · sem evento</option>
-                  )}
-                  {rooms.map((item) => (
-                    <option value={item.id} key={item.id}>
-                      {item.title}
-                      {item.access?.isPublic ? "" : " (sala oculta)"}
-                    </option>
-                  ))}
+                  {superAdmin &&
+                    (isHome ||
+                      !configs.some((item) => item.roomId === null)) && (
+                      <option value="home">Página inicial · sem evento</option>
+                    )}
+                  {rooms
+                    .filter(
+                      (item) =>
+                        item.id === selected ||
+                        !configs.some((config) => config.roomId === item.id),
+                    )
+                    .map((item) => (
+                      <option value={item.id} key={item.id}>
+                        {item.title}
+                        {item.access?.isPublic ? "" : " (sala oculta)"}
+                      </option>
+                    ))}
                 </select>
               </label>
               <p>
