@@ -292,7 +292,207 @@
   margin: 4px 0 0;
   font-size: 14px;
 }
+.stream-feedback {
+  position: sticky;
+  top: 12px;
+  z-index: 5;
+  padding: 14px 18px;
+  background: #24251d;
+  border: 1px solid #586345;
+  border-radius: 8px;
+}
+.stream-feedback.admin-form-error {
+  background: #30201b;
+  border-color: #9e5f45;
+}
+.stream-overview-heading,
+.stream-editor-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+.stream-overview-heading h2,
+.stream-editor-heading h2 {
+  font-family: var(--display-font);
+  font-size: 32px;
+  line-height: 1.2;
+  margin: 0;
+}
+.stream-overview-heading p,
+.stream-editor-heading p {
+  color: var(--muted);
+  margin: 7px 0 0;
+  font-size: 14px;
+}
+.stream-visibility-group {
+  margin: 28px 0;
+}
+.stream-visibility-group > ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 14px;
+}
+.stream-group-title {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 13px;
+}
+.stream-group-title > span {
+  color: var(--muted);
+  font-weight: 400;
+}
+.stream-visibility-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 175px 180px;
+  gap: 24px;
+  align-items: center;
+  padding: 24px;
+  background: #191714;
+  border: 1px solid var(--border);
+  border-left: 3px solid #554a3d;
+  border-radius: 10px;
+}
+.stream-visibility-card.is-showing {
+  background: #211c15;
+  border-left-color: var(--accent);
+}
+.stream-visibility-info {
+  min-width: 0;
+}
+.stream-visibility-destination {
+  margin: 0 0 9px;
+  font-size: 13px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.stream-visibility-info h3 {
+  font-family: var(--display-font);
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.15;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.stream-visibility-channels {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 10px 0 0;
+  overflow-wrap: anywhere;
+}
+.stream-visibility-state {
+  display: grid;
+  gap: 8px;
+}
+.stream-visibility-state > small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.stream-display-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.stream-display-status > span {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: #8e857b;
+}
+.stream-display-status.is-showing {
+  color: var(--team-a);
+}
+.stream-display-status.is-showing > span {
+  background: var(--accent);
+}
+.stream-visibility-actions {
+  display: grid;
+  gap: 8px;
+}
+.stream-visibility-actions > button {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+.stream-visibility-actions > a {
+  justify-self: center;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.stream-hide-action {
+  border-color: #93734a;
+  color: #f1c67c;
+  background: #2b2318;
+}
+.stream-visibility-empty {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 26px 24px;
+  border: 1px dashed #5a4c3e;
+  border-radius: 10px;
+  color: var(--muted);
+}
+.stream-visibility-empty > svg {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+}
+.stream-visibility-empty p {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+}
+.stream-visibility-empty strong {
+  color: var(--text);
+  font-weight: 600;
+}
+.stream-visibility-footnote {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 78ch;
+  margin: 24px 0 0;
+}
+.stream-editor-shell {
+  border-top: 1px solid var(--border);
+  margin-top: 38px;
+  padding-top: 30px;
+  scroll-margin-top: 90px;
+}
+.stream-editor-shell:focus {
+  outline: none;
+}
+.stream-editor-heading > button {
+  flex-shrink: 0;
+}
 @media (max-width: 1049px) {
+  .stream-visibility-card {
+    grid-template-columns: minmax(0, 1fr) 180px;
+  }
+  .stream-visibility-info {
+    grid-column: 1;
+  }
+  .stream-visibility-state {
+    grid-column: 1;
+  }
+  .stream-visibility-actions {
+    grid-column: 2;
+    grid-row: 1 / 3;
+  }
   .stream-stage.has-chat {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -310,6 +510,33 @@
   }
 }
 @media (max-width: 700px) {
+  .stream-overview-heading {
+    flex-direction: column;
+    gap: 18px;
+  }
+  .stream-overview-heading > button {
+    width: 100%;
+  }
+  .stream-visibility-card {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+    padding: 20px;
+  }
+  .stream-visibility-actions {
+    grid-column: 1;
+    grid-row: auto;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .stream-visibility-actions > button {
+    padding: 8px;
+    font-size: 13px;
+  }
+  .stream-visibility-actions > a {
+    grid-column: 1 / -1;
+  }
+  .stream-editor-heading h2 {
+    font-size: 28px;
+  }
   .stream-heading {
     align-items: flex-start;
     gap: 12px;

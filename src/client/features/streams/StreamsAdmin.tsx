@@ -10,6 +10,7 @@ import { AdminPortal } from "../../components/AdminPortal";
 import { useAdminAuth } from "../../hooks/useAdminAuth";
 import { StreamPlayer } from "./StreamPlayer";
 import { parseBroadcasts } from "./useBroadcasts";
+import { StreamVisibilityList } from "./StreamVisibilityList";
 import "./streams.css";
 
 async function request(path: string, options: RequestInit = {}) {
@@ -32,7 +33,7 @@ export function StreamsAdmin() {
         <div>
           <h1>Transmissões</h1>
           <p>
-            Junte a galera na mesma tela, mesmo com pontos de vista diferentes.
+            Escolha o que a galera vê e deixe os canais prontos para a próxima.
           </p>
         </div>
         <a href="/admin" className="button">
@@ -69,6 +70,10 @@ function StreamsWorkspace({
   const [enabled, setEnabled] = useState(false),
     [promoteHome, setPromoteHome] = useState(false);
   const [version, setVersion] = useState(0);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [toggling, setToggling] = useState<string | null>(null);
+  const editorRef = useRef<HTMLElement>(null);
+  const focusAfterToggle = useRef<string | null>(null);
   const [loaded, setLoaded] = useState(false),
     [busy, setBusy] = useState(false);
   const [error, setError] = useState(""),
@@ -121,6 +126,7 @@ function StreamsWorkspace({
             ? "home"
             : (roomReply[0]?.id ?? "");
         populate(key, items);
+        setEditorOpen(!!wanted || items.length === 0);
         setLoaded(true);
       } catch (err) {
         if (!ctrl.signal.aborted) setError((err as Error).message);
@@ -128,16 +134,37 @@ function StreamsWorkspace({
     })();
     return () => ctrl.abort();
   }, [retry, superAdmin]);
+  useEffect(() => {
+    if (!editorOpen || !loaded || !editorRef.current) return;
+    editorRef.current.focus({ preventScroll: true });
+    editorRef.current.scrollIntoView({
+      block: "start",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+    });
+  }, [editorOpen, loaded]);
+  useEffect(() => {
+    if (busy || !focusAfterToggle.current || typeof document === "undefined")
+      return;
+    const key = focusAfterToggle.current;
+    focusAfterToggle.current = null;
+    Array.from(
+      document.querySelectorAll<HTMLButtonElement>("[data-stream-action]"),
+    )
+      .find((button) => button.dataset.streamAction === key)
+      ?.focus();
+  }, [configs, busy]);
   const room = rooms.find((item) => item.id === selected);
   const isHome = selected === "home";
   const canPromote = !isHome && !!room?.access?.isPublic && canPublish;
-  function draft() {
+  function draft(show = enabled) {
     return normalizeBroadcast({
       title,
       channels: channels.filter(
         (item) => item.channel.trim() || item.label.trim(),
       ),
-      enabled,
+      enabled: show,
       promoteHome: !isHome && promoteHome,
     });
   }
@@ -152,15 +179,15 @@ function StreamsWorkspace({
     });
     setPreview(null);
   }
-  async function save(event: FormEvent) {
-    event.preventDefault();
+  async function save(event?: FormEvent, show = true) {
+    event?.preventDefault();
     if (!selected || locked.current) return;
     locked.current = true;
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      const config = draft();
+      const config = draft(show);
       const result = await request("/api/admin/streams", {
         method: "PUT",
         headers: { "content-type": "application/json" },
@@ -177,11 +204,14 @@ function StreamsWorkspace({
       ];
       setConfigs(next);
       setVersion(saved.version);
+      setEnabled(saved.enabled);
+      setEditorOpen(false);
+      focusAfterToggle.current = saved.roomId ?? "home";
       setPreview(null);
       setNotice(
         saved.enabled
-          ? "Transmissão publicada. Os espectadores recebem a atualização em até 10 segundos."
-          : "Transmissão oculta. Os canais ficaram salvos para a próxima.",
+          ? `“${saved.title}” está em exibição. Os espectadores recebem a atualização em até 10 segundos.`
+          : `“${saved.title}” ficou guardada. Use “Exibir no site” quando quiser publicar.`,
       );
     } catch (err) {
       if ((err as { status?: number }).status === 409) {
@@ -198,6 +228,66 @@ function StreamsWorkspace({
     } finally {
       locked.current = false;
       setBusy(false);
+    }
+  }
+  async function toggle(savedConfig: Broadcast) {
+    if (locked.current) return;
+    locked.current = true;
+    setBusy(true);
+    setToggling(savedConfig.roomId ?? "home");
+    setError("");
+    setNotice("");
+    try {
+      const targetRoom = rooms.find((item) => item.id === savedConfig.roomId);
+      // Visibility uses saved channels, never unfinished editor fields.
+      const result = await request("/api/admin/streams", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          roomId: savedConfig.roomId,
+          expectedVersion: savedConfig.version,
+          title: savedConfig.title,
+          channels: savedConfig.channels,
+          enabled: !savedConfig.enabled,
+          promoteHome:
+            savedConfig.promoteHome &&
+            !!targetRoom?.access?.isPublic &&
+            canPublish,
+        }),
+      });
+      const saved = parseBroadcasts([result])[0]!;
+      setConfigs((items) => [
+        ...items.filter((item) => item.roomId !== saved.roomId),
+        saved,
+      ]);
+      focusAfterToggle.current = saved.roomId ?? "home";
+      if ((saved.roomId ?? "home") === selected) {
+        setVersion(saved.version);
+        setEnabled(saved.enabled);
+      }
+      setNotice(
+        saved.enabled
+          ? `“${saved.title}” está em exibição. A galera recebe a atualização em até 10 segundos.`
+          : `“${saved.title}” foi ocultada do site. Os canais continuam salvos.`,
+      );
+    } catch (err) {
+      if ((err as { status?: number }).status === 409) {
+        try {
+          const result = await request("/api/admin/streams");
+          const next = parseBroadcasts(result.broadcasts);
+          setConfigs(next);
+          // Reload the editor as well; attaching a fresh version to an old
+          // draft could overwrite somebody else's channel changes later.
+          populate(selected, next);
+        } catch {
+          setLoaded(false);
+        }
+      }
+      setError((err as Error).message);
+    } finally {
+      locked.current = false;
+      setBusy(false);
+      setToggling(null);
     }
   }
   if (!loaded)
@@ -230,240 +320,310 @@ function StreamsWorkspace({
     );
   return (
     <>
-      <form
-        className="stream-configuration"
-        onSubmit={(event) => void save(event)}
-      >
-        <section className="stream-destination">
-          <h2>Onde a galera vai assistir?</h2>
-          <label>
-            Local da transmissão
-            <select
-              name="stream-destination"
-              disabled={busy}
-              value={selected}
-              onChange={(event) => populate(event.target.value, configs)}
-            >
-              {superAdmin && (
-                <option value="home">Página inicial · sem evento</option>
-              )}
-              {rooms.map((item) => (
-                <option value={item.id} key={item.id}>
-                  {item.title}
-                  {item.access?.isPublic ? "" : " (sala oculta)"}
-                </option>
-              ))}
-            </select>
-          </label>
-          <p>
-            {isHome
-              ? "O player e o chat aparecem direto na página inicial."
-              : "O player e o chat ficam dentro desta sala, junto dos times, mapas e resultados."}
-          </p>
-          {!isHome && <a href={`/s/${selected}?live=1`}>Abrir a sala</a>}
-        </section>
-        <section className="stream-channel-editor">
-          <h2>Quem vai transmitir?</h2>
-          <label>
-            Título
-            <input
-              name="stream-title"
-              maxLength={100}
-              required
-              value={title}
-              disabled={busy}
-              onChange={(event) => {
-                setTitle(event.target.value);
-                setPreview(null);
-              }}
-            />
-          </label>
-          <ol className="stream-channel-list">
-            {channels.map((item, index) => (
-              <li key={index}>
-                <div className="stream-channel-fields">
-                  <label>
-                    Canal da Twitch
-                    <input
-                      aria-label={`Canal ${index + 1}`}
-                      placeholder="https://www.twitch.tv/seucanal"
-                      value={item.channel}
-                      maxLength={300}
-                      disabled={busy}
-                      onChange={(event) => {
-                        setChannels((items) =>
-                          items.map((entry, at) =>
-                            at === index
-                              ? { ...entry, channel: event.target.value }
-                              : entry,
-                          ),
-                        );
-                        setPreview(null);
-                      }}
-                    />
-                  </label>
-                  <label>
-                    Nome de exibição <span className="muted">(opcional)</span>
-                    <input
-                      aria-label={`Nome do canal ${index + 1}`}
-                      placeholder="Sua visão, narrador, POV…"
-                      value={item.label}
-                      maxLength={40}
-                      disabled={busy}
-                      onChange={(event) => {
-                        setChannels((items) =>
-                          items.map((entry, at) =>
-                            at === index
-                              ? { ...entry, label: event.target.value }
-                              : entry,
-                          ),
-                        );
-                        setPreview(null);
-                      }}
-                    />
-                  </label>
-                </div>
-                <div className="stream-channel-actions">
-                  <button
-                    type="button"
-                    aria-label={`Subir canal ${index + 1}`}
-                    disabled={busy || index === 0}
-                    onClick={() => move(index, -1)}
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Descer canal ${index + 1}`}
-                    disabled={busy || index === channels.length - 1}
-                    onClick={() => move(index, 1)}
-                  >
-                    ↓
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost"
-                    disabled={busy}
-                    aria-label={`Remover canal ${index + 1}`}
-                    onClick={() => {
-                      setChannels((items) =>
-                        items.filter((_, at) => at !== index),
-                      );
-                      setPreview(null);
-                    }}
-                  >
-                    Remover
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ol>
-          <button
-            type="button"
-            className="ghost"
-            disabled={busy || channels.length >= MAX_STREAM_CHANNELS}
-            onClick={() =>
-              setChannels((items) => [...items, { channel: "", label: "" }])
-            }
-          >
-            Adicionar canal
-          </button>
-          <p className="muted small">
-            Até seis canais. A ordem acima será a ordem das setas. Cada
-            espectador escolhe o seu.
-          </p>
-        </section>
-        <section className="stream-publish">
-          <h2>Pronto para a resenha?</h2>
-          <label className="stream-checkbox">
-            <input
-              type="checkbox"
-              name="stream-enabled"
-              checked={enabled}
-              disabled={busy}
-              onChange={(event) => setEnabled(event.target.checked)}
-            />
-            <span>
-              <strong>Exibir transmissão</strong>
-              <small>
-                Desative para tirar os players do site e manter os canais
-                salvos.
-              </small>
-            </span>
-          </label>
-          {!isHome && (
-            <label className="stream-checkbox">
-              <input
-                type="checkbox"
-                name="stream-promote"
-                checked={promoteHome}
-                disabled={busy || (!canPromote && !promoteHome)}
-                onChange={(event) => setPromoteHome(event.target.checked)}
-              />
-              <span>
-                <strong>Divulgar também na página inicial</strong>
-                <small>
-                  {canPromote
-                    ? "A galera vê um destaque na home e entra nesta sala para assistir."
-                    : "Disponível para salas públicas e para quem pode publicar salas."}
-                </small>
-              </span>
-            </label>
-          )}
-          {error && (
-            <p role="alert" className="admin-form-error">
-              {error}
-            </p>
-          )}
-          {notice && (
-            <p role="status" className="stream-notice">
-              {notice}
-            </p>
-          )}
-          <div className="stream-save-actions">
-            <button type="submit" className="primary" disabled={busy}>
-              {busy ? "Salvando…" : "Salvar transmissão"}
-            </button>
+      {error && (
+        <p role="alert" className="admin-form-error stream-feedback">
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p role="status" className="stream-notice stream-feedback">
+          {notice}
+        </p>
+      )}
+      <StreamVisibilityList
+        broadcasts={configs}
+        rooms={rooms}
+        busy={busy}
+        toggling={toggling}
+        canAdd={
+          (superAdmin && !configs.some((item) => item.roomId === null)) ||
+          rooms.some(
+            (item) => !configs.some((config) => config.roomId === item.id),
+          )
+        }
+        onEdit={(key) => {
+          populate(key, configs);
+          setEditorOpen(true);
+        }}
+        onAdd={() => {
+          const target =
+            superAdmin && !configs.some((item) => item.roomId === null)
+              ? "home"
+              : rooms.find(
+                  (item) =>
+                    !configs.some((config) => config.roomId === item.id),
+                )?.id;
+          if (target) {
+            populate(target, configs);
+            setEditorOpen(true);
+          }
+        }}
+        onToggle={(item) => void toggle(item)}
+      />
+      {editorOpen && (
+        <section
+          className="stream-editor-shell"
+          aria-labelledby="stream-editor-title"
+          tabIndex={-1}
+          ref={editorRef}
+        >
+          <div className="stream-editor-heading">
+            <div>
+              <h2 id="stream-editor-title">
+                {version > 0 ? "Editar canais" : "Adicionar transmissão"}
+              </h2>
+              <p>
+                {version > 0
+                  ? "A exibição é controlada pelos botões acima."
+                  : "Cole os canais e escolha onde exibir."}
+              </p>
+            </div>
             <button
               type="button"
+              className="ghost"
               disabled={busy}
               onClick={() => {
-                try {
-                  const value = draft();
-                  if (!value.channels.length)
-                    throw new Error("Adicione um canal para abrir a prévia.");
-                  setPreview({
-                    ...value,
-                    enabled: true,
-                    roomId: isHome ? null : selected,
-                    version,
-                  });
-                  setError("");
-                } catch (err) {
-                  setError((err as Error).message);
-                }
+                setEditorOpen(false);
+                setPreview(null);
+                setError("");
               }}
             >
-              Testar player e chat
+              Cancelar
             </button>
           </div>
-          <p className="muted small">
-            Não precisa de chave da Twitch. Basta iniciar a live no OBS ou no
-            aplicativo que você já usa. Esta opção publica o player no site; ela
-            não inicia uma live.
-          </p>
+          <form
+            className="stream-configuration"
+            onSubmit={(event) => void save(event)}
+          >
+            <section className="stream-destination">
+              <h2>Onde a galera vai assistir?</h2>
+              <label>
+                Local da transmissão
+                <select
+                  name="stream-destination"
+                  disabled={busy || version > 0}
+                  value={selected}
+                  onChange={(event) => populate(event.target.value, configs)}
+                >
+                  {superAdmin &&
+                    (isHome ||
+                      !configs.some((item) => item.roomId === null)) && (
+                      <option value="home">Página inicial · sem evento</option>
+                    )}
+                  {rooms
+                    .filter(
+                      (item) =>
+                        item.id === selected ||
+                        !configs.some((config) => config.roomId === item.id),
+                    )
+                    .map((item) => (
+                      <option value={item.id} key={item.id}>
+                        {item.title}
+                        {item.access?.isPublic ? "" : " (sala oculta)"}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <p>
+                {isHome
+                  ? "O player e o chat aparecem direto na página inicial."
+                  : "O player e o chat ficam dentro desta sala, junto dos times, mapas e resultados."}
+              </p>
+              {!isHome && <a href={`/s/${selected}?live=1`}>Abrir a sala</a>}
+            </section>
+            <section className="stream-channel-editor">
+              <h2>Quem vai transmitir?</h2>
+              <label>
+                Título
+                <input
+                  name="stream-title"
+                  maxLength={100}
+                  required
+                  value={title}
+                  disabled={busy}
+                  onChange={(event) => {
+                    setTitle(event.target.value);
+                    setPreview(null);
+                  }}
+                />
+              </label>
+              <ol className="stream-channel-list">
+                {channels.map((item, index) => (
+                  <li key={index}>
+                    <div className="stream-channel-fields">
+                      <label>
+                        Canal da Twitch
+                        <input
+                          aria-label={`Canal ${index + 1}`}
+                          placeholder="https://www.twitch.tv/seucanal"
+                          value={item.channel}
+                          maxLength={300}
+                          disabled={busy}
+                          onChange={(event) => {
+                            setChannels((items) =>
+                              items.map((entry, at) =>
+                                at === index
+                                  ? { ...entry, channel: event.target.value }
+                                  : entry,
+                              ),
+                            );
+                            setPreview(null);
+                          }}
+                        />
+                      </label>
+                      <label>
+                        Nome de exibição{" "}
+                        <span className="muted">(opcional)</span>
+                        <input
+                          aria-label={`Nome do canal ${index + 1}`}
+                          placeholder="Sua visão, narrador, POV…"
+                          value={item.label}
+                          maxLength={40}
+                          disabled={busy}
+                          onChange={(event) => {
+                            setChannels((items) =>
+                              items.map((entry, at) =>
+                                at === index
+                                  ? { ...entry, label: event.target.value }
+                                  : entry,
+                              ),
+                            );
+                            setPreview(null);
+                          }}
+                        />
+                      </label>
+                    </div>
+                    <div className="stream-channel-actions">
+                      <button
+                        type="button"
+                        aria-label={`Subir canal ${index + 1}`}
+                        disabled={busy || index === 0}
+                        onClick={() => move(index, -1)}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Descer canal ${index + 1}`}
+                        disabled={busy || index === channels.length - 1}
+                        onClick={() => move(index, 1)}
+                      >
+                        ↓
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost"
+                        disabled={busy}
+                        aria-label={`Remover canal ${index + 1}`}
+                        onClick={() => {
+                          setChannels((items) =>
+                            items.filter((_, at) => at !== index),
+                          );
+                          setPreview(null);
+                        }}
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+              <button
+                type="button"
+                className="ghost"
+                disabled={busy || channels.length >= MAX_STREAM_CHANNELS}
+                onClick={() =>
+                  setChannels((items) => [...items, { channel: "", label: "" }])
+                }
+              >
+                Adicionar canal
+              </button>
+              <p className="muted small">
+                Até seis canais. A ordem acima será a ordem das setas. Cada
+                espectador escolhe o seu.
+              </p>
+            </section>
+            <section className="stream-publish">
+              {!isHome && (
+                <label className="stream-checkbox">
+                  <input
+                    type="checkbox"
+                    name="stream-promote"
+                    checked={promoteHome}
+                    disabled={busy || (!canPromote && !promoteHome)}
+                    onChange={(event) => setPromoteHome(event.target.checked)}
+                  />
+                  <span>
+                    <strong>Divulgar também na página inicial</strong>
+                    <small>
+                      {canPromote
+                        ? "A galera vê um destaque na home e entra nesta sala para assistir."
+                        : "Disponível para salas públicas e para quem pode publicar salas."}
+                    </small>
+                  </span>
+                </label>
+              )}
+              <div className="stream-save-actions">
+                <button type="submit" className="primary" disabled={busy}>
+                  {busy && !toggling
+                    ? "Salvando…"
+                    : enabled
+                      ? "Salvar alterações"
+                      : "Salvar e exibir"}
+                </button>
+                {!enabled && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void save(undefined, false)}
+                  >
+                    Salvar sem exibir
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    try {
+                      const value = draft();
+                      if (!value.channels.length)
+                        throw new Error(
+                          "Adicione um canal para abrir a prévia.",
+                        );
+                      setPreview({
+                        ...value,
+                        enabled: true,
+                        roomId: isHome ? null : selected,
+                        version,
+                      });
+                      setError("");
+                    } catch (err) {
+                      setError((err as Error).message);
+                    }
+                  }}
+                >
+                  Testar player e chat
+                </button>
+              </div>
+              <p className="muted small">
+                Não precisa de chave da Twitch. Basta iniciar a live no OBS ou
+                no aplicativo que você já usa. Esta opção publica o player no
+                site; ela não inicia uma live.
+              </p>
+            </section>
+          </form>
+          {preview && (
+            <div className="stream-admin-preview">
+              <div className="stream-preview-heading">
+                <h2>Prévia só para você</h2>
+                <button type="button" onClick={() => setPreview(null)}>
+                  Fechar prévia
+                </button>
+              </div>
+              <StreamPlayer key={selected} broadcast={preview} />
+            </div>
+          )}
         </section>
-      </form>
-      {preview && (
-        <div className="stream-admin-preview">
-          <div className="stream-preview-heading">
-            <h2>Prévia só para você</h2>
-            <button type="button" onClick={() => setPreview(null)}>
-              Fechar prévia
-            </button>
-          </div>
-          <StreamPlayer key={selected} broadcast={preview} />
-        </div>
       )}
     </>
   );
