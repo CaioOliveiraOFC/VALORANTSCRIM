@@ -10,6 +10,7 @@ A aplicação em uso combina React, Vercel Functions, Supabase Postgres/Realtime
 - **Tutorial para enviar aos organizadores:** [guia online](public/guia-admin.html) e [PDF](public/guia-admin.pdf), publicados em `/guia-admin.html` e `/guia-admin.pdf`.
 - **Partidas pela API:** [importação de customizadas](docs/MATCH-IMPORT.md).
 - **Foco e sorteios compartilhados:** [ROOM-TOOLS.md](docs/ROOM-TOOLS.md).
+- **Transmissões Twitch com vídeo e chat:** [STREAMS.md](docs/STREAMS.md), configuradas em `/admin/lives`.
 - **Identidade Brasa, home VCT e fixação de destaque:** [BRASA-VCT.md](docs/BRASA-VCT.md).
 - **X1 em preparação:** [prévia interativa](docs/BRASA-PREVIEW.md), com dados locais de demonstração.
 

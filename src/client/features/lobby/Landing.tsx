@@ -4,6 +4,7 @@ import { navigate } from '../../router';
 import { Icon } from '../../ui/Icons';
 import { fmtDateTime } from '../../util';
 import { phaseLabel, selectFeatured } from './featured';
+import { HomeStreams } from '../streams/PublicStreams';
 
 export function internal(event: MouseEvent<HTMLAnchorElement>) {
   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
@@ -175,6 +176,7 @@ export function Landing() {
           )}
         </section>
       </section>
+      <HomeStreams />
       {active.length > 0 && (
         <section className="club-event-section">
           <div className="club-section-heading">

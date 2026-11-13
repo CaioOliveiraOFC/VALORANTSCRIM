@@ -5,6 +5,7 @@ export type Route =
   | { name: 'home' }
   | { name: 'admin' }
   | { name: 'management' }
+  | { name: 'streams' }
   | { name: 'scrim'; id: string }
   | { name: 'brasa-preview' }
   | { name: 'vct' }
@@ -12,6 +13,7 @@ export type Route =
   | { name: 'x1' };
 
 export function parseRoute(pathname: string): Route {
+  if (/^\/admin\/lives\/?$/.test(pathname)) return { name: 'streams' };
   if (/^\/vct\/?$/.test(pathname)) return { name: 'vct' };
   if (/^\/historico\/?$/.test(pathname)) return { name: 'history' };
   if (/^\/x1\/?$/.test(pathname)) return { name: 'x1' };
@@ -44,6 +46,7 @@ export function useRoute(): Route {
 
 /** Only destinations implemented by this app can receive a post-login return. */
 export function safeAdminReturnTo(value: string | null): string {
+  if (value === '/admin/lives') return value;
   if (value && ['/', '/vct', '/historico', '/x1'].includes(value)) return value;
   if (value === '/admin/management') return value;
   if (value && value === value.trim() && /^\/s\/[a-z0-9]{6,32}\/?$/.test(value)) return value;

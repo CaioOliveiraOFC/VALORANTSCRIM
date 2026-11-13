@@ -8,6 +8,7 @@ import { navigate, useRoute, type Route } from './router';
 import './components/AdminPortal.css';
 import { Landing, X1Page } from './features/lobby/Landing';
 import { Brand } from './ui/Brand';
+import { StreamsAdmin } from './features/streams/StreamsAdmin';
 
 const BrasaPreview = lazy(() => import('./features/brasa-preview/BrasaPreview'));
 
@@ -59,6 +60,7 @@ function AppLayout({ route }: { route: Route }) {
       history: 'Histórico · Brasa',
       admin: 'Minha organização · Brasa',
       management: 'Administração · Brasa',
+      streams: 'Transmissões · Brasa',
       x1: 'X1 · Brasa',
       scrim: 'VCT · Brasa',
     };
@@ -140,6 +142,7 @@ function AppLayout({ route }: { route: Route }) {
               Administração
             </a>
           )}
+          {auth.status === 'admin' && auth.can('editRoom') && <a className="account-admin-link" href="/admin/lives" onClick={internal} aria-current={route.name === 'streams' ? 'page' : undefined}>Transmissões</a>}
         </div>
         {auth.status === 'admin' && (
           <div className="account-session">
@@ -167,6 +170,8 @@ function AppLayout({ route }: { route: Route }) {
           <AdminPortal />
         ) : route.name === 'management' ? (
           <SuperAdminPanel />
+        ) : route.name === 'streams' ? (
+          <StreamsAdmin />
         ) : route.name === 'vct' ? (
           <Home />
         ) : route.name === 'history' ? (
