@@ -10,24 +10,35 @@ contas ou dados existentes. Não exige nova variável de ambiente nem chave Twit
 ## Configuração em poucos passos
 
 1. Entre como administrador e abra **Transmissões** no cabeçalho ou no painel.
-2. Escolha onde assistir: uma das suas salas ou **Página inicial · sem evento**
+2. Clique em **Adicionar transmissão** e escolha onde assistir: uma das suas salas ou **Página inicial · sem evento**
    (essa última opção é exclusiva do super admin).
 3. Cole um ou mais canais, por exemplo `https://twitch.tv/masterpfi`. Dê nomes
    curtos às perspectivas se quiser. As setas para cima/baixo definem a ordem.
-4. Marque **Exibir transmissão**. Para um evento público, você também pode marcar
+4. Para um evento público, você também pode marcar
    **Divulgar também na página inicial**: o destaque leva a galera até a sala,
    onde ficam o vídeo, o chat, os times e os mapas.
 5. Use **Testar player e chat** para conferir só na sua tela; clique em
-   **Salvar transmissão** para publicar. Inicie a live normalmente no OBS/Twitch.
+   **Salvar e exibir** para publicar na hora ou **Salvar sem exibir** para deixar
+   preparada. Inicie a live normalmente no OBS/Twitch.
 
 Cada espectador usa as setas para escolher seu canal. A escolha é individual;
 mudar uma perspectiva troca vídeo e chat juntos e remove o player anterior,
 evitando áudio de dois canais. Reordenar a lista não troca o canal que a pessoa
 já selecionou, se ele ainda estiver disponível.
 
-Para encerrar a exibição, desmarque **Exibir transmissão** e salve. Os canais
-ficam armazenados para a próxima. Os espectadores recebem mudanças de
-configuração em até 10 segundos, sem recarregar a página.
+O painel abre mostrando **Em exibição** e **Guardadas para depois**. Cada
+transmissão informa o destino, os canais e o estado que foi salvo.
+**Ocultar do site** e **Exibir no site** salvam imediatamente, em um clique.
+Não é preciso abrir o formulário nem salvar de novo. Ocultar mantém os canais
+armazenados e não encerra a live na Twitch. Os espectadores recebem mudanças
+em até 10 segundos, sem recarregar a página.
+
+Use **Editar canais** para mudar título, lista, ordem e divulgação na home.
+**Salvar alterações** atualiza uma transmissão em exibição. A visibilidade
+rápida usa os dados salvos, sem publicar campos que você ainda está editando.
+Uma falha mantém o último estado confirmado; um conflito pede revisão dos
+dados atualizados. Esta melhoria usa a migração de transmissões já instalada;
+não é necessário aplicar outro SQL.
 
 ## Regras e limites
 
