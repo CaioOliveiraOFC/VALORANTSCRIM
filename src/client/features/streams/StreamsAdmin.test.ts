@@ -67,6 +67,8 @@ function backend(initial: Broadcast[] = []) {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url, options) => {
+      if (String(url).includes("/api/admin/stream-recordings"))
+        return response({ recordings: [], total: 0, nextOffset: null });
       if (options?.method === "PUT") {
         const body = JSON.parse(options.body);
         state.writes.push(body);

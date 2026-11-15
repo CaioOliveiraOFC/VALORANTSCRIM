@@ -47,6 +47,9 @@ export function HomeStreams() {
           </ul>
         </div>
       )}
+      <a className="stream-manage-link" href="/gravacoes" onClick={internal}>
+        Ver gravações anteriores
+      </a>
     </section>
   );
 }
@@ -76,9 +79,16 @@ export function RoomStreams({
         >
           {broadcast
             ? "Configurar transmissão desta sala"
-            : "Adicionar transmissão da Twitch"}
+            : "Adicionar transmissão"}
         </a>
       )}
+      <a
+        className="stream-manage-link"
+        href={`/gravacoes?roomId=${roomId}`}
+        onClick={internal}
+      >
+        Gravações desta sala
+      </a>
     </div>
   );
 }

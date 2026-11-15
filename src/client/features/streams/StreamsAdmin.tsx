@@ -4,6 +4,7 @@ import {
   MAX_STREAM_CHANNELS,
   normalizeBroadcast,
   type Broadcast,
+  streamUrl,
 } from "../../../shared/streams";
 import { adminFetch } from "../../authFetch";
 import { AdminPortal } from "../../components/AdminPortal";
@@ -11,6 +12,7 @@ import { useAdminAuth } from "../../hooks/useAdminAuth";
 import { StreamPlayer } from "./StreamPlayer";
 import { parseBroadcasts } from "./useBroadcasts";
 import { StreamVisibilityList } from "./StreamVisibilityList";
+import { RecordingsAdmin, type RecordingTarget } from "./RecordingsAdmin";
 import "./streams.css";
 
 async function request(path: string, options: RequestInit = {}) {
@@ -71,6 +73,8 @@ function StreamsWorkspace({
     [promoteHome, setPromoteHome] = useState(false);
   const [version, setVersion] = useState(0);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [recordingTarget, setRecordingTarget] =
+    useState<RecordingTarget | null>(null);
   const [toggling, setToggling] = useState<string | null>(null);
   const editorRef = useRef<HTMLElement>(null);
   const focusAfterToggle = useRef<string | null>(null);
@@ -92,8 +96,8 @@ function StreamsWorkspace({
     setChannels(
       existing?.channels.length
         ? existing.channels.map((item) => ({
-            ...item,
-            channel: `https://www.twitch.tv/${item.channel}`,
+            label: item.label,
+            channel: streamUrl(item),
           }))
         : [{ channel: "", label: "" }],
     );
@@ -310,13 +314,21 @@ function StreamsWorkspace({
     );
   if (!selected)
     return (
-      <section className="card">
-        <h2>Crie uma sala para transmitir.</h2>
-        <p>Depois, volte aqui para adicionar os canais da Twitch.</p>
-        <a href="/admin" className="button">
-          Ir para minhas salas
-        </a>
-      </section>
+      <>
+        <section className="card">
+          <h2>Crie uma sala para transmitir.</h2>
+          <p>Depois, volte aqui para adicionar as transmissões.</p>
+          <a href="/admin" className="button">
+            Ir para minhas salas
+          </a>
+        </section>
+        <RecordingsAdmin
+          rooms={rooms}
+          superAdmin={superAdmin}
+          canPublish={canPublish}
+          target={null}
+        />
+      </>
     );
   return (
     <>
@@ -359,6 +371,15 @@ function StreamsWorkspace({
           }
         }}
         onToggle={(item) => void toggle(item)}
+        onRecord={(item) => {
+          setEditorOpen(false);
+          setPreview(null);
+          setRecordingTarget({
+            roomId: item.roomId,
+            title: item.title,
+            source: item.channels[0],
+          });
+        }}
       />
       {editorOpen && (
         <section
@@ -452,10 +473,10 @@ function StreamsWorkspace({
                   <li key={index}>
                     <div className="stream-channel-fields">
                       <label>
-                        Canal da Twitch
+                        Link da transmissão
                         <input
                           aria-label={`Canal ${index + 1}`}
-                          placeholder="https://www.twitch.tv/seucanal"
+                          placeholder="Link da Twitch, YouTube ou Kick"
                           value={item.channel}
                           maxLength={300}
                           disabled={busy}
@@ -606,9 +627,10 @@ function StreamsWorkspace({
                 </button>
               </div>
               <p className="muted small">
-                Não precisa de chave da Twitch. Basta iniciar a live no OBS ou
-                no aplicativo que você já usa. Esta opção publica o player no
-                site; ela não inicia uma live.
+                Cole o link de uma live da Twitch, YouTube ou Kick. No YouTube,
+                use o link da live ou do vídeo, não o endereço do canal. Esta
+                opção exibe o player no site; inicie a live normalmente na
+                plataforma.
               </p>
             </section>
           </form>
@@ -625,6 +647,12 @@ function StreamsWorkspace({
           )}
         </section>
       )}
+      <RecordingsAdmin
+        rooms={rooms}
+        superAdmin={superAdmin}
+        canPublish={canPublish}
+        target={recordingTarget}
+      />
     </>
   );
 }

@@ -1,4 +1,8 @@
-import type { Broadcast } from "../../../shared/streams";
+import {
+  PLATFORM_NAMES,
+  streamPlatform,
+  type Broadcast,
+} from "../../../shared/streams";
 import type { ScrimSummary } from "../../../shared/protocol";
 
 export function VisibilityIcon({ hidden = false }: { hidden?: boolean }) {
@@ -30,6 +34,7 @@ export function StreamVisibilityList({
   onAdd,
   onEdit,
   onToggle,
+  onRecord,
 }: {
   broadcasts: Broadcast[];
   rooms: ScrimSummary[];
@@ -39,6 +44,7 @@ export function StreamVisibilityList({
   onAdd: () => void;
   onEdit: (key: string) => void;
   onToggle: (broadcast: Broadcast) => void;
+  onRecord: (broadcast: Broadcast) => void;
 }) {
   const visible = broadcasts.filter((item) => item.enabled);
   const hidden = broadcasts.filter((item) => !item.enabled);
@@ -68,7 +74,14 @@ export function StreamVisibilityList({
             <h3>{item.title}</h3>
             <p className="stream-visibility-channels">
               {item.channels.length
-                ? item.channels.map((channel) => channel.label).join(" · ")
+                ? item.channels
+                    .map((channel) => {
+                      const platform = PLATFORM_NAMES[streamPlatform(channel)];
+                      return channel.label === platform
+                        ? platform
+                        : `${channel.label} (${platform})`;
+                    })
+                    .join(" · ")
                 : "Adicione um canal para poder exibir."}
             </p>
           </div>
@@ -107,6 +120,15 @@ export function StreamVisibilityList({
               aria-label={`Editar canais de ${item.title}`}
             >
               Editar canais
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              disabled={busy}
+              onClick={() => onRecord(item)}
+              aria-label={`Registrar replay de ${item.title}`}
+            >
+              Registrar replay
             </button>
             {item.enabled && (
               <a href={item.roomId ? `/s/${item.roomId}?live=1` : "/"}>
@@ -156,7 +178,7 @@ export function StreamVisibilityList({
               <span>
                 {hidden.length
                   ? "Use “Exibir no site” em uma transmissão abaixo."
-                  : "Adicione um canal da Twitch para começar."}
+                  : "Adicione uma live da Twitch, YouTube ou Kick para começar."}
               </span>
             </p>
           </div>
@@ -174,8 +196,8 @@ export function StreamVisibilityList({
         </section>
       )}
       <p className="stream-visibility-footnote">
-        Ocultar retira o player e o chat do site em até 10 segundos. Sua live na
-        Twitch continua normalmente.
+        Ocultar retira o player e o chat do site em até 10 segundos. Sua live
+        continua normalmente na plataforma.
       </p>
     </section>
   );

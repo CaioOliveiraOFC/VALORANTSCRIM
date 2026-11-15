@@ -1,6 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
+    { "source": "/api/streams/recordings/:id", "destination": "/api/index?route=streams/recordings/:id" },
+    { "source": "/api/streams/recordings", "destination": "/api/index?route=streams/recordings" },
+    { "source": "/api/admin/stream-recordings/:id", "destination": "/api/index?route=admin/stream-recordings/:id" },
+    { "source": "/api/admin/stream-recordings", "destination": "/api/index?route=admin/stream-recordings" },
     { "source": "/api/streams", "destination": "/api/index?route=streams" },
     { "source": "/api/admin/streams", "destination": "/api/index?route=admin/streams" },
     { "source": "/api/scrims/:id/streams", "destination": "/api/index?route=scrims/:id/streams" },

@@ -9,6 +9,7 @@ import './components/AdminPortal.css';
 import { Landing, X1Page } from './features/lobby/Landing';
 import { Brand } from './ui/Brand';
 import { StreamsAdmin } from './features/streams/StreamsAdmin';
+import { RecordingsPage } from './features/streams/RecordingsPage';
 
 const BrasaPreview = lazy(() => import('./features/brasa-preview/BrasaPreview'));
 
@@ -61,6 +62,7 @@ function AppLayout({ route }: { route: Route }) {
       admin: 'Minha organização · Brasa',
       management: 'Administração · Brasa',
       streams: 'Transmissões · Brasa',
+      recordings: 'Gravações · Brasa',
       x1: 'X1 · Brasa',
       scrim: 'VCT · Brasa',
     };
@@ -122,6 +124,7 @@ function AppLayout({ route }: { route: Route }) {
           >
             Histórico
           </a>
+          <a href="/gravacoes" onClick={internal} aria-current={route.name === 'recordings' ? 'page' : undefined}>Gravações</a>
         </nav>
         <div className="club-account-links">
           <a
@@ -172,6 +175,8 @@ function AppLayout({ route }: { route: Route }) {
           <SuperAdminPanel />
         ) : route.name === 'streams' ? (
           <StreamsAdmin />
+        ) : route.name === 'recordings' ? (
+          <RecordingsPage />
         ) : route.name === 'vct' ? (
           <Home />
         ) : route.name === 'history' ? (
