@@ -1,6 +1,146 @@
 .stream-home {
   margin: 48px 0;
 }
+.stream-current .stream-platform-label {
+  color: var(--team-a);
+  font-size: 12px;
+}
+.stream-external-replay {
+  min-height: 280px;
+  padding: 40px 24px;
+  text-align: center;
+  align-content: center;
+}
+.stream-external-replay h3 {
+  font-family: var(--display-font);
+  font-size: 30px;
+}
+.stream-external-replay p {
+  color: var(--muted);
+}
+.recordings-admin {
+  margin-top: 44px;
+  padding-top: 32px;
+  border-top: 1px solid var(--border);
+}
+.recording-form {
+  max-width: 680px;
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: grid;
+  gap: 18px;
+  margin: 24px 0;
+  scroll-margin-top: 30px;
+}
+.recording-form input:not([type="checkbox"]),
+.recording-form select {
+  width: 100%;
+  min-width: 0;
+}
+.recording-form h3 {
+  margin: 0;
+  font-family: var(--display-font);
+  font-size: 28px;
+}
+.recording-form .stream-checkbox {
+  margin: 6px 0 0;
+}
+.recording-form .stream-checkbox input[type="checkbox"] {
+  position: static;
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  flex: 0 0 20px;
+  accent-color: var(--accent);
+}
+.recording-admin-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+}
+.recording-admin-list > li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  padding: 22px 0;
+  border-bottom: 1px solid var(--border);
+}
+.recording-admin-list h3 {
+  font-family: var(--display-font);
+  font-size: 26px;
+  margin: 6px 0;
+}
+.recording-admin-list p {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+.recording-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+.recording-provider {
+  color: var(--team-a);
+  font-size: 13px;
+}
+.recording-cards {
+  list-style: none;
+  padding: 0;
+  margin: 30px 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: 20px;
+}
+.recording-cards article {
+  height: 100%;
+  padding: 26px;
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--accent);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.recording-cards h2 {
+  font-family: var(--display-font);
+  font-size: 30px;
+  line-height: 1.15;
+  margin: 14px 0;
+  overflow-wrap: anywhere;
+}
+.recording-cards p,
+.recording-cards small {
+  color: var(--muted);
+}
+.recording-cards article > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-top: 24px;
+}
+.recording-cards article > div > a:not(.button) {
+  font-size: 13px;
+}
+.recording-selected {
+  margin-bottom: 32px;
+}
+.stream-room > .stream-manage-link + .stream-manage-link {
+  margin-left: 20px;
+}
+@media (max-width: 700px) {
+  .recording-admin-list > li {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .recording-form {
+    padding: 18px;
+  }
+}
 .stream-theater {
   min-width: 0;
   padding: 0;

@@ -12,6 +12,7 @@ import { applyEvent, initialState, DomainError, seriesScore, type Command, type 
 import type { SeriesFormat } from '../src/shared/veto.js';
 import type { RoomAccess, ScrimSummary } from '../src/shared/protocol.js';
 import { normalizeBroadcast } from '../src/shared/streams.js';
+import { recordingInput } from '../src/shared/recordings.js';
 import {
   activeDraw, validateFocusTarget, DRAW_REVEAL_MS, DRAW_TTL_MS, ROOM_FOCUS_TTL_MS,
   type RoomDraw, type RoomToolsEvent,
@@ -25,6 +26,7 @@ const MAX_BODY = 16 * 1024;
 const ACCESS_MIGRATION = 'Aplique a migração 20261105_super_admin.sql no Supabase para usar a administração e a propriedade das salas.';
 const HOME_MIGRATION = 'Aplique a migração 20261112_home_feature.sql no Supabase para fixar uma sala na página inicial.';
 const STREAMS_MIGRATION = 'Aplique a migração 20261113_streams.sql no Supabase para configurar as transmissões.';
+const MULTISTREAM_MIGRATION = 'Aplique a migração 20261114_multiplatform_streams.sql no Supabase para YouTube, Kick e histórico de gravações.';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const hash = (key: string) => createHash('sha256').update(key).digest('hex');
 
@@ -55,10 +57,17 @@ async function db(path: string, options: RequestInit = {}): Promise<any> {
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({})) as { message?: string; code?: string };
+    if (['rpc/get_stream_capabilities', 'rpc/list_stream_recordings', 'rpc/get_stream_recording', 'rpc/create_stream_recording', 'rpc/manage_stream_recording'].includes(path)) {
+      if (['PGRST202', '42703', '42P01'].includes(error.code ?? '')) throw new ApiError(503, MULTISTREAM_MIGRATION);
+      if (error.message?.includes('RECORDING_NOT_FOUND')) throw new ApiError(404, 'Gravação não encontrada.');
+      if (error.message?.includes('DUPLICATE_RECORDING')) throw new ApiError(409, 'Este replay já foi cadastrado neste destino.');
+      if (error.message?.includes('STALE_RECORDING')) throw new ApiError(409, 'Esta gravação mudou em outra aba. Atualize antes de tentar novamente.');
+      if (error.message?.includes('INVALID_RECORDING')) throw new ApiError(400, 'Dados da gravação inválidos.');
+    }
     if (['rpc/get_public_broadcasts', 'rpc/get_room_broadcast', 'rpc/get_admin_broadcasts', 'rpc/set_broadcast'].includes(path)) {
       if (['PGRST202', '42703', '42P01'].includes(error.code ?? '')) throw new ApiError(503, STREAMS_MIGRATION);
       if (error.message?.includes('STALE_BROADCAST')) throw new ApiError(409, 'A transmissão mudou em outra aba. Recarregue e revise antes de salvar.');
-      if (error.message?.includes('INVALID_BROADCAST')) throw new ApiError(400, 'Revise o título e os canais da Twitch.');
+      if (error.message?.includes('INVALID_BROADCAST')) throw new ApiError(400, 'Revise o título e os links da transmissão.');
     }
     if (['rpc/get_public_home_feature', 'rpc/get_home_feature_admin', 'rpc/set_home_feature'].includes(path) && ['PGRST202', '42703', '42P01'].includes(error.code ?? '')) throw new ApiError(503, HOME_MIGRATION);
     if (error.message?.includes('STALE_HOME_FEATURE')) throw new ApiError(409, 'O destaque mudou em outra aba. Recarregue e revise a seleção.');
@@ -235,6 +244,19 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
       throw error;
     }
   }
+  if (path[0] === 'streams' && path[1] === 'recordings' && req.method === 'GET') {
+    if (path.length === 2) {
+      const offset = Number(url.searchParams.get('offset') ?? '0'), roomId = url.searchParams.get('roomId');
+      if (!Number.isSafeInteger(offset) || offset < 0 || offset > 100000 || roomId !== null && !ID_RE.test(roomId)) throw new ApiError(400, 'Página de gravações inválida.');
+      try { return send(res, 200, await db('rpc/list_stream_recordings', { method: 'POST', body: JSON.stringify({ p_actor_id: null, p_actor_session_version: null, p_admin: false, p_offset: offset, p_room_id: roomId }) })); }
+      catch (error) { if (error instanceof ApiError && error.status === 503 && error.message === MULTISTREAM_MIGRATION) return send(res, 200, { recordings: [], total: 0, nextOffset: null }); throw error; }
+    }
+    if (path.length === 3 && UUID_RE.test(path[2]!)) {
+      const session = await actor();
+      return send(res, 200, await db('rpc/get_stream_recording', { method: 'POST', body: JSON.stringify({ p_id: path[2], p_actor_id: session?.userId ?? null, p_actor_session_version: session?.sessionVersion ?? null }) }));
+    }
+    throw new ApiError(404, 'Gravação não encontrada.');
+  }
   if (path.length === 2 && path[0] === 'home' && path[1] === 'featured' && req.method === 'GET') {
     try { return send(res, 200, await db('rpc/get_public_home_feature', { method: 'POST', body: '{}' })); }
     catch (error) {
@@ -244,6 +266,36 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     }
   }
   if (path[0] === 'admin') {
+    if (path[1] === 'stream-recordings' && (path.length === 2 || path.length === 3)) {
+      const session = await actor();
+      if (!session) throw new ApiError(403, 'Entre como administrador para gerenciar as gravações.');
+      requirePermission(session, 'editRoom');
+      const identity = { p_actor_id: session.userId, p_actor_session_version: session.sessionVersion };
+      if (path.length === 2 && req.method === 'GET') {
+        const offset = Number(url.searchParams.get('offset') ?? '0');
+        if (!Number.isSafeInteger(offset) || offset < 0 || offset > 100000) throw new ApiError(400, 'Página de gravações inválida.');
+        return send(res, 200, await db('rpc/list_stream_recordings', { method: 'POST', body: JSON.stringify({ ...identity, p_admin: true, p_offset: offset, p_room_id: null }) }));
+      }
+      assertSameOrigin(req);
+      const input = await jsonBody(req);
+      if (path.length === 2 && req.method === 'POST') {
+        if (Object.keys(input).some(key => !['roomId', 'title', 'url', 'label', 'isPublic'].includes(key)) || !(input.roomId === null || typeof input.roomId === 'string' && ID_RE.test(input.roomId))) throw new ApiError(400, 'Dados da gravação inválidos.');
+        let recording;
+        try { recording = recordingInput(input); } catch (error) { throw new ApiError(400, (error as Error).message); }
+        if (input.roomId === null) { if (!session.isSuperAdmin) throw new ApiError(403, 'Somente a conta principal pode cadastrar gravações sem evento.'); }
+        else {
+          const metadata = await roomAccess(input.roomId as string); requireOwnership(metadata, session);
+          if (metadata.deleted_at !== null) throw new ApiError(404, 'Scrim não encontrada.');
+          if (recording.isPublic) { requirePermission(session, 'publishRooms'); if (!metadata.is_public) throw new ApiError(400, 'Publique a sala antes de mostrar o replay no acervo.'); }
+        }
+        return send(res, 201, await db('rpc/create_stream_recording', { method: 'POST', body: JSON.stringify({ ...identity, p_id: randomUUID(), p_room_id: input.roomId, p_title: recording.title, p_source: recording.source, p_is_public: recording.isPublic }) }));
+      }
+      if (path.length === 3 && req.method === 'PUT' && UUID_RE.test(path[2]!)) {
+        if (Object.keys(input).some(key => !['isPublic', 'expectedVersion'].includes(key)) || typeof input.isPublic !== 'boolean' || !Number.isSafeInteger(input.expectedVersion) || (input.expectedVersion as number) < 1 || (input.expectedVersion as number) > 2147483646) throw new ApiError(400, 'Visibilidade da gravação inválida.');
+        return send(res, 200, await db('rpc/manage_stream_recording', { method: 'POST', body: JSON.stringify({ ...identity, p_id: path[2], p_expected_version: input.expectedVersion, p_is_public: input.isPublic }) }));
+      }
+      throw new ApiError(405, 'Método não permitido.');
+    }
     if (path.length === 2 && path[1] === 'streams') {
       const session = await actor();
       if (!session) throw new ApiError(403, 'Entre como administrador para configurar transmissões.');
@@ -268,6 +320,10 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
           requirePermission(session, 'publishRooms');
           if (!metadata.is_public) throw new ApiError(400, 'Publique a sala antes de destacá-la na página inicial.');
         }
+      }
+      if (config.channels.some(source => source.platform !== undefined || source.kind !== undefined)) {
+        const capabilities = await db('rpc/get_stream_capabilities', { method: 'POST', body: '{}' });
+        if (capabilities?.multiplatform !== true) throw new ApiError(503, MULTISTREAM_MIGRATION);
       }
       return send(res, 200, await db('rpc/set_broadcast', { method: 'POST', body: JSON.stringify({
         ...identity, p_room_id: input.roomId, p_expected_version: input.expectedVersion,

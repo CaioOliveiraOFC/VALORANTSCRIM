@@ -1,4 +1,4 @@
-# Twitch na Brasa
+# Twitch, YouTube, Kick e gravações na Brasa
 
 ## Antes de publicar esta versão
 
@@ -7,12 +7,18 @@ no SQL Editor do projeto Supabase já usado pelo site. Requer a migração de su
 admin de 20261105, que o painel atual já utiliza. Não altera eventos, partidas,
 contas ou dados existentes. Não exige nova variável de ambiente nem chave Twitch.
 
+Para as três plataformas e o acervo, aplicar depois
+[20261114_multiplatform_streams.sql](../supabase/migrations/20261114_multiplatform_streams.sql).
+Ela amplia a validação e adiciona uma tabela de gravações. Os canais Twitch já
+salvos continuam no mesmo formato e não são reescritos.
+
 ## Configuração em poucos passos
 
 1. Entre como administrador e abra **Transmissões** no cabeçalho ou no painel.
 2. Clique em **Adicionar transmissão** e escolha onde assistir: uma das suas salas ou **Página inicial · sem evento**
    (essa última opção é exclusiva do super admin).
-3. Cole um ou mais canais, por exemplo `https://twitch.tv/masterpfi`. Dê nomes
+3. Cole um ou mais links da Twitch, YouTube ou Kick. A plataforma é identificada
+   automaticamente; no YouTube use o link da live/vídeo, não o do canal. Dê nomes
    curtos às perspectivas se quiser. As setas para cima/baixo definem a ordem.
 4. Para um evento público, você também pode marcar
    **Divulgar também na página inicial**: o destaque leva a galera até a sala,
@@ -42,8 +48,13 @@ não é necessário aplicar outro SQL.
 
 ## Regras e limites
 
-- Até seis canais por transmissão, sem duplicados. Apenas nomes/links de canais
-  da Twitch; clipes, VODs, iframes e URLs de outros sites são recusados.
+- Até seis perspectivas por transmissão, sem duplicados. Twitch aceita o nome
+  do canal ou seu link; Kick aceita o link do canal; YouTube aceita `/watch?v=`,
+  `/live/` e `youtu.be`. URLs arbitrárias e HTML de iframes são recusados.
+- Twitch usa player e chat incorporados. YouTube usa player e chat da live
+  quando disponível. Kick usa `player.kick.com` para lives e um link para abrir
+  o chat na plataforma. Restrições do canal/plataforma podem bloquear embeds;
+  o link original continua acessível.
 - Organizador com **Editar a sala** configura as próprias salas. Super admin
   configura todas e a transmissão independente da home. Destacar um evento na
   home também exige **Publicar ou ocultar salas** e uma sala pública.
@@ -57,7 +68,8 @@ não é necessário aplicar outro SQL.
 - A reprodução começa pelo play, sem áudio automático. Não há detecção de canal
   ao vivo/offline, número de espectadores, restream ou retransmissão pelo servidor
   da Brasa. A publicação do player não inicia a live no OBS.
-- `parent` é o hostname atual, tanto para vídeo quanto para chat: produção,
+- Na Twitch, `parent` é o hostname atual; o chat do YouTube usa `embed_domain`:
+  produção,
   preview e futuros domínios não precisam ser fixados no código. A hospedagem
   usa HTTPS. Em telas pequenas o viewport mínimo de 400×300 da Twitch é ajustado
   visualmente ao espaço disponível; o chat fica abaixo e pode ser ocultado.
@@ -79,3 +91,44 @@ acesso novamente. Não há necessidade de reaplicar migrações anteriores.
 
 APIs: `GET /api/streams`, `GET/PUT /api/admin/streams` e
 `GET /api/scrims/:id/streams`. Todas usam `Cache-Control: no-store`.
+
+## Histórico com links dos replays
+
+O escopo escolhido pelo Caio é **guardar links, sem armazenar os arquivos de
+vídeo**. O acervo público fica em `/gravacoes`, com links permanentes da Brasa
+em `/gravacoes?replay=UUID` e páginas adicionais em “Ver mais gravações”.
+
+1. Ao terminar a live, no painel use **Registrar replay** na transmissão ou
+   **Adicionar replay** no histórico.
+2. Informe título, perspectiva e o link do vídeo salvo. No YouTube, o ID da
+   live pode continuar sendo o do replay; o campo já vem preenchido nesse caso.
+3. Escolha a sala ou **Clube · sem evento** (só super admin) e se o replay deve
+   aparecer publicamente. Salas ocultas mantêm o cadastro privado.
+4. Clique em **Salvar replay**. Trocar canais ou ocultar a live não remove esse
+   registro. **Ocultar replay** retira a publicação, mantendo o histórico.
+
+Na Twitch, habilite o salvamento de transmissões anteriores na própria
+plataforma. Depois copie o VOD em `twitch.tv/videos/ID`. Na Kick, use
+`kick.com/canal/videos/UUID`. Um link mutável de canal é recusado como replay.
+Não há descoberta automática de VODs nem integração com as contas das plataformas.
+
+Twitch e YouTube reproduzem os vídeos no site; o replay da Kick abre o link
+original na plataforma. Os replays não exibem o chat de uma live diferente.
+O acervo guarda título, fonte, data de cadastro e vínculo com o evento, mas a
+disponibilidade do vídeo depende de quem o publicou. Apagar/expirar um VOD na
+plataforma pode tornar seu link indisponível.
+
+Gravações seguem o proprietário atual da sala e as permissões existentes. Uma
+sala oculta/excluída sai do acervo público, mas seus registros ficam disponíveis
+à administração autorizada. URLs de vídeos não ficam na tabela de configuração
+mutável da live. Há deduplicação por vídeo/destino, controle de versão para
+visibilidade, auditoria privada e paginação.
+
+APIs do acervo: `GET /api/streams/recordings`,
+`GET /api/streams/recordings/:id`, `GET/POST /api/admin/stream-recordings` e
+`PUT /api/admin/stream-recordings/:id`. A tabela tem RLS e não permite acesso
+direto de anon/authenticated/service_role; as RPCs revalidam sessão e propriedade.
+
+Referências: [embed Twitch](https://dev.twitch.tv/docs/embed/video-and-clips/),
+[embed YouTube](https://developers.google.com/youtube/player_parameters) e
+[player Kick](https://player.kick.com/).
