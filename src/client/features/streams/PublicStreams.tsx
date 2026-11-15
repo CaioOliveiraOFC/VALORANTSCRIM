@@ -62,7 +62,6 @@ export function RoomStreams({
 }) {
   const { broadcasts, error } = useBroadcasts(roomId);
   const broadcast = broadcasts[0];
-  if (!broadcast && !canEdit && !error) return null;
   return (
     <div className="stream-room" id="transmissao">
       {broadcast && <StreamPlayer broadcast={broadcast} />}
