@@ -16,6 +16,8 @@ export function Timeline({ events }: { events: ScrimEvent[] }) {
     switch (e.type) {
       case 'match.import': return `Partida ${e.match.id} importada da HenrikDev no mapa ${e.mapIndex + 1}, com dez associações confirmadas pelo admin`;
       case 'scrim.create': return `Scrim criada: ${e.title}`;
+      case 'scrim.pause': return `Empate técnico: scrim pausada. ${e.reason}`;
+      case 'scrim.resume': return 'Scrim retomada do ponto em que parou.';
       case 'settings.update': return `Configuração alterada${e.format ? ` (formato ${e.format.toUpperCase()})` : ''}${e.pool ? ` (pool: ${e.pool.map((m) => MAPS[m].name).join(', ')})` : ''}${e.title ? ` (título: ${e.title})` : ''}`;
       case 'team.rename': return `Time ${e.team} renomeado para ${e.name}`;
       case 'team.captain': return e.playerId ? `${player(e.playerId)} é capitão do ${team(e.team)}` : `${team(e.team)} sem capitão`;

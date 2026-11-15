@@ -231,9 +231,11 @@ beforeEach(() => {
       if(casConflict || r.version!==payload.p_expected_version || r.access_version!==payload.p_expected_access_version) return new Response(JSON.stringify({message:'STALE_OR_FORBIDDEN'}),{status:400});
       r.state=payload.p_state;r.version++;r.events.push(payload.p_event);return ok(null);
     }
-    const id=u.searchParams.get('id')?.slice(3) ?? u.searchParams.get('scrim_id')?.slice(3);
+    const idFilter = u.searchParams.get('id');
+    const id=(idFilter?.startsWith('eq.') ? idFilter.slice(3) : undefined) ?? u.searchParams.get('scrim_id')?.slice(3);
     if(u.pathname.endsWith('/scrims')) {
       let result = id ? (rows.has(id)?[rows.get(id)!]:[]) : [...rows.values()];
+      if (idFilter?.startsWith('in.(')) { const ids = idFilter.slice(4,-1).split(','); result=result.filter(row=>ids.includes(row.id)); }
       if (u.searchParams.get('owner_user_id')) result=result.filter(row=>row.owner_user_id===u.searchParams.get('owner_user_id')!.slice(3));
       if (u.searchParams.get('is_public')==='eq.true') result=result.filter(row=>row.is_public);
       if (u.searchParams.get('deleted_at')==='is.null') result=result.filter(row=>row.deleted_at===null);
@@ -1104,5 +1106,43 @@ describe('Multiplatform streams and replay archive', () => {
     const result = await superCall('/api/admin/stream-recordings');
     expect(result.status).toBe(503); expect(result.body.error).toContain('20261114_multiplatform_streams.sql');
     expect((await viewerCall('/api/streams/recordings')).body).toEqual({ recordings: [], total: 0, nextOffset: null });
+  });
+});
+
+describe('Technical draw and event media scope', () => {
+  it('allows only the room editor to pause and resume, preserving the event log and requiring the same database capability', async () => {
+    const { id } = await create();
+    expect((await viewerCall(`/api/scrims/${id}/command`, 'POST', { command: { type: 'scrim.pause', reason: 'Faltou jogador.' } })).status).toBe(403);
+    expect((await otherCall(`/api/scrims/${id}/command`, 'POST', { command: { type: 'scrim.pause', reason: 'Outra sala.' } })).status).toBe(403);
+    expect((await adminCall(`/api/scrims/${id}/command`, 'POST', { command: { type: 'scrim.pause', reason: 'Motivo', resumePhase: 'finished' } })).status).toBe(400);
+    adminPermissions.editRoom = false;
+    expect((await adminCall(`/api/scrims/${id}/command`, 'POST', { command: { type: 'scrim.pause', reason: 'Faltou jogador.' } })).status).toBe(403);
+    adminPermissions.editRoom = true;
+    const paused = await adminCall(`/api/scrims/${id}/command`, 'POST', { command: { type: 'scrim.pause', reason: 'Faltou jogador.' } });
+    expect(paused.status).toBe(200); expect(paused.body.state.phase).toBe('paused');
+    expect(appendMutations.at(-1)!.p_required_permissions).toEqual(['editRoom']);
+    expect((await adminCall(`/api/scrims/${id}/imports`, 'POST', { action: 'search', region: 'br', riotId: 'Master#BR1' })).status).toBe(400);
+    expect(providerCalls).toBe(0);
+    expect((await adminCall(`/api/scrims/${id}/command`, 'POST', { command: { type: 'team.rename', team: 'A', name: 'Alterado' } })).status).toBe(400);
+    const resumed = await adminCall(`/api/scrims/${id}/command`, 'POST', { command: { type: 'scrim.resume' } });
+    expect(resumed.status).toBe(200); expect(resumed.body.state.phase).toBe('setup');
+    expect(rows.get(id)!.events.map(e => e.type)).toEqual(['scrim.create', 'scrim.pause', 'scrim.resume']);
+  });
+  it('drops paused event promotions from home while leaving the room stream configuration intact', async () => {
+    const { id } = await create();
+    expect((await adminCall('/api/admin/streams', 'PUT', { roomId: id, expectedVersion: 0, title: 'Live', channels: [{ channel: 'masterpfi', label: 'Master' }], enabled: true, promoteHome: true })).status).toBe(200);
+    expect((await viewerCall('/api/streams')).body.broadcasts).toHaveLength(1);
+    await adminCall(`/api/scrims/${id}/command`, 'POST', { command: { type: 'scrim.pause', reason: 'Empate técnico.' } });
+    expect((await viewerCall('/api/streams')).body.broadcasts).toEqual([]);
+    expect((await viewerCall(`/api/scrims/${id}/streams`)).body.broadcasts).toHaveLength(1);
+    await adminCall(`/api/scrims/${id}/command`, 'POST', { command: { type: 'scrim.resume' } });
+    expect((await viewerCall('/api/streams')).body.broadcasts).toHaveLength(1);
+  });
+  it('filters the recording manager by an owned event and rejects another room scope', async () => {
+    const first = await create(), second = await create();
+    for (const roomId of [first.id, second.id]) expect((await adminCall('/api/admin/stream-recordings', 'POST', { roomId, title: 'Replay', url: 'https://youtu.be/aqz-KE-bpKQ', label: 'YT', isPublic: true })).status).toBe(201);
+    const scoped = await adminCall(`/api/admin/stream-recordings?roomId=${first.id}`);
+    expect(scoped.status).toBe(200); expect(scoped.body.recordings).toHaveLength(1); expect(scoped.body.recordings[0].roomId).toBe(first.id);
+    expect((await otherCall(`/api/admin/stream-recordings?roomId=${first.id}`)).status).toBe(403);
   });
 });

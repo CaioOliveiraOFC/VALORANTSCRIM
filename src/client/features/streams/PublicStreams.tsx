@@ -30,7 +30,7 @@ export function HomeStreams() {
           <ul>
             {events.map((item) => (
               <li key={item.roomId}>
-                <a href={`/s/${item.roomId}?live=1`} onClick={internal}>
+                <a href={`/s/${item.roomId}?media=live#event-media`} onClick={internal}>
                   <span>
                     <strong>{item.title}</strong>
                     <small>

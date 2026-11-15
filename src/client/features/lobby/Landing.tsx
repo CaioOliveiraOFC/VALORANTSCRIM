@@ -56,7 +56,7 @@ export function Landing() {
   const pinned = usePinnedRoom();
   const featured = rooms ? selectFeatured(rooms, pinned) : null;
   const active =
-    rooms?.filter((room) => room.phase !== 'finished' && room.id !== featured?.id) ?? [];
+    rooms?.filter((room) => room.phase !== 'finished' && room.phase !== 'paused' && room.id !== featured?.id) ?? [];
   const recent =
     rooms
       ?.filter((room) => room.phase === 'finished' && room.id !== featured?.id)

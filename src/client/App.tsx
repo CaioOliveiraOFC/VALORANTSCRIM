@@ -61,7 +61,7 @@ function AppLayout({ route }: { route: Route }) {
       history: 'Histórico · Brasa',
       admin: 'Minha organização · Brasa',
       management: 'Administração · Brasa',
-      streams: 'Transmissões · Brasa',
+      streams: 'Lives e gravações · Brasa',
       recordings: 'Gravações · Brasa',
       x1: 'X1 · Brasa',
       scrim: 'VCT · Brasa',
@@ -145,7 +145,7 @@ function AppLayout({ route }: { route: Route }) {
               Administração
             </a>
           )}
-          {auth.status === 'admin' && auth.can('editRoom') && <a className="account-admin-link" href="/admin/lives" onClick={internal} aria-current={route.name === 'streams' ? 'page' : undefined}>Transmissões</a>}
+          {auth.status === 'admin' && auth.can('editRoom') && <a className="account-admin-link" href="/admin/lives" onClick={internal} aria-current={route.name === 'streams' ? 'page' : undefined}>Lives e gravações</a>}
         </div>
         {auth.status === 'admin' && (
           <div className="account-session">

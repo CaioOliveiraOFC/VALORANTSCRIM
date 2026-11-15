@@ -14,36 +14,36 @@ salvos continuam no mesmo formato e não são reescritos.
 
 ## Configuração em poucos passos
 
-1. Entre como administrador e abra **Transmissões** no cabeçalho ou no painel.
-2. Clique em **Adicionar transmissão** e escolha onde assistir: uma das suas salas ou **Página inicial · sem evento**
-   (essa última opção é exclusiva do super admin).
-3. Cole um ou mais links da Twitch, YouTube ou Kick. A plataforma é identificada
+1. Entre como administrador e abra a sua sala. No bloco **Acompanhe este evento**,
+   escolha **Ao vivo** e **Adicionar link ao vivo**.
+2. Cole um ou mais links da Twitch, YouTube ou Kick. A plataforma é identificada
    automaticamente; no YouTube use o link da live/vídeo, não o do canal. Dê nomes
-   curtos às perspectivas se quiser. As setas para cima/baixo definem a ordem.
-4. Para um evento público, você também pode marcar
-   **Divulgar também na página inicial**: o destaque leva a galera até a sala,
+   curtos às perspectivas se quiser. Use **Adicionar outra perspectiva** para
+   montar o carrossel.
+3. Para um evento público, você também pode marcar
+   **Destacar este evento na página inicial**: o destaque leva a galera até a sala,
    onde ficam o vídeo, o chat, os times e os mapas.
-5. Use **Testar player e chat** para conferir só na sua tela; clique em
-   **Salvar e exibir** para publicar na hora ou **Salvar sem exibir** para deixar
-   preparada. Inicie a live normalmente no OBS/Twitch.
+4. Clique em **Salvar e exibir neste evento**. O player compacto aparece na própria
+   sala; **Ampliar player** aumenta a visualização. Inicie a live normalmente na
+   plataforma escolhida.
 
 Cada espectador usa as setas para escolher seu canal. A escolha é individual;
 mudar uma perspectiva troca vídeo e chat juntos e remove o player anterior,
 evitando áudio de dois canais. Reordenar a lista não troca o canal que a pessoa
 já selecionou, se ele ainda estiver disponível.
 
-O painel abre mostrando **Em exibição** e **Guardadas para depois**. Cada
-transmissão informa o destino, os canais e o estado que foi salvo.
-**Ocultar do site** e **Exibir no site** salvam imediatamente, em um clique.
-Não é preciso abrir o formulário nem salvar de novo. Ocultar mantém os canais
-armazenados e não encerra a live na Twitch. Os espectadores recebem mudanças
-em até 10 segundos, sem recarregar a página.
+O status **Exibindo live neste evento** identifica a publicação do player.
+**Ocultar live** e **Exibir live** salvam imediatamente. Ocultar mantém os links
+armazenados e não encerra a live na plataforma. Os espectadores recebem mudanças
+em até 10 segundos, sem recarregar a página. **Editar links da live** altera as
+perspectivas e a divulgação na home. A visibilidade rápida usa os dados salvos,
+sem publicar campos que você ainda está editando. Um conflito entre abas exige
+revisar a configuração atual antes de salvar novamente.
 
-Use **Editar canais** para mudar título, lista, ordem e divulgação na home.
-**Salvar alterações** atualiza uma transmissão em exibição. A visibilidade
-rápida usa os dados salvos, sem publicar campos que você ainda está editando.
-Uma falha mantém o último estado confirmado; um conflito pede revisão dos
-dados atualizados. Esta melhoria usa a migração de transmissões já instalada;
+A área **Lives e gravações** é um diretório com atalhos para os eventos. Não é
+necessário criar uma transmissão em outro painel para depois vinculá-la à sala.
+A divulgação independente na página inicial permanece em um bloco separado,
+exclusivo do super admin. A organização por evento usa as migrações já instaladas;
 não é necessário aplicar outro SQL.
 
 ## Regras e limites
@@ -98,12 +98,14 @@ O escopo escolhido pelo Caio é **guardar links, sem armazenar os arquivos de
 vídeo**. O acervo público fica em `/gravacoes`, com links permanentes da Brasa
 em `/gravacoes?replay=UUID` e páginas adicionais em “Ver mais gravações”.
 
-1. Ao terminar a live, no painel use **Registrar replay** na transmissão ou
-   **Adicionar replay** no histórico.
+1. Na própria sala, abra **Gravações** e use **Adicionar replay**. Essa aba abre
+   por padrão em eventos encerrados ou em empate técnico, caso o espectador
+   ainda não tenha escolhido outra aba.
 2. Informe título, perspectiva e o link do vídeo salvo. No YouTube, o ID da
    live pode continuar sendo o do replay; o campo já vem preenchido nesse caso.
-3. Escolha a sala ou **Clube · sem evento** (só super admin) e se o replay deve
-   aparecer publicamente. Salas ocultas mantêm o cadastro privado.
+3. O evento já vem definido. Escolha se o replay deve aparecer publicamente.
+   Salas ocultas mantêm o cadastro privado. Cadastros independentes de evento
+   continuam disponíveis ao super admin no acervo geral.
 4. Clique em **Salvar replay**. Trocar canais ou ocultar a live não remove esse
    registro. **Ocultar replay** retira a publicação, mantendo o histórico.
 

@@ -1,300 +1,170 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { ScrimSummary } from "../../../shared/protocol";
 import {
-  MAX_STREAM_CHANNELS,
   normalizeBroadcast,
-  type Broadcast,
   streamUrl,
+  type Broadcast,
 } from "../../../shared/streams";
-import { adminFetch } from "../../authFetch";
 import { AdminPortal } from "../../components/AdminPortal";
 import { useAdminAuth } from "../../hooks/useAdminAuth";
-import { StreamPlayer } from "./StreamPlayer";
-import { parseBroadcasts } from "./useBroadcasts";
-import { StreamVisibilityList } from "./StreamVisibilityList";
-import { RecordingsAdmin, type RecordingTarget } from "./RecordingsAdmin";
+import { adminFetch } from "../../authFetch";
+import { navigate } from "../../router";
+import { adminBroadcasts, saveBroadcast } from "./broadcastApi";
+import { RecordingsAdmin } from "./RecordingsAdmin";
 import "./streams.css";
+import "./event-media.css";
 
-async function request(path: string, options: RequestInit = {}) {
-  const response = await adminFetch(path, { cache: "no-store", ...options });
-  const body = await response.json();
-  if (!response.ok)
-    throw Object.assign(
-      new Error(body.error || "Não foi possível carregar as transmissões."),
-      { status: response.status },
-    );
-  return body;
-}
 export function StreamsAdmin() {
   const auth = useAdminAuth();
+  const requestedRoom = new URLSearchParams(location.search).get("room");
+  useEffect(() => {
+    if (
+      auth.status === "admin" &&
+      requestedRoom &&
+      /^[a-z0-9]{6,32}$/.test(requestedRoom)
+    )
+      navigate(`/s/${requestedRoom}?media=live#event-media`);
+  }, [auth.status, requestedRoom]);
   if (auth.status !== "admin")
     return <AdminPortal returnToPath="/admin/lives" />;
   return (
     <main className="page streams-admin">
       <header className="stream-admin-heading">
         <div>
-          <h1>Transmissões</h1>
+          <h1>Lives e gravações</h1>
           <p>
-            Escolha o que a galera vê e deixe os canais prontos para a próxima.
+            Abra o evento para colocar os links. O player e as gravações ficam
+            junto da scrim.
           </p>
         </div>
-        <a href="/admin" className="button">
-          Voltar para minhas salas
+        <a className="button" href="/admin">
+          Voltar para meus eventos
         </a>
       </header>
       {auth.can("editRoom") ? (
-        <StreamsWorkspace
+        <MediaOverview
           key={auth.email}
           superAdmin={auth.isSuperAdmin}
           canPublish={auth.can("publishRooms")}
         />
       ) : (
         <section className="card">
-          <h2>Seu acesso não permite configurar transmissões.</h2>
+          <h2>Seu acesso não permite configurar lives.</h2>
           <p>Peça ao super admin a permissão “Editar a sala”.</p>
         </section>
       )}
     </main>
   );
 }
-function StreamsWorkspace({
+
+function MediaOverview({
   superAdmin,
   canPublish,
 }: {
   superAdmin: boolean;
   canPublish: boolean;
 }) {
-  const [rooms, setRooms] = useState<ScrimSummary[]>([]);
-  const [configs, setConfigs] = useState<Broadcast[]>([]);
-  const [selected, setSelected] = useState("");
-  const [title, setTitle] = useState("Transmissão da Brasa");
-  const [channels, setChannels] = useState([{ channel: "", label: "" }]);
-  const [enabled, setEnabled] = useState(false),
-    [promoteHome, setPromoteHome] = useState(false);
-  const [version, setVersion] = useState(0);
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [recordingTarget, setRecordingTarget] =
-    useState<RecordingTarget | null>(null);
-  const [toggling, setToggling] = useState<string | null>(null);
-  const editorRef = useRef<HTMLElement>(null);
-  const focusAfterToggle = useRef<string | null>(null);
-  const [loaded, setLoaded] = useState(false),
-    [busy, setBusy] = useState(false);
+  const [rooms, setRooms] = useState<ScrimSummary[] | null>(null),
+    [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [error, setError] = useState(""),
-    [notice, setNotice] = useState("");
-  const [retry, setRetry] = useState(0),
-    [preview, setPreview] = useState<Broadcast | null>(null);
+    [notice, setNotice] = useState(""),
+    [retry, setRetry] = useState(0),
+    [busy, setBusy] = useState(false);
+  const [homeOpen, setHomeOpen] = useState(false),
+    [archiveOpen, setArchiveOpen] = useState(false);
+  const [title, setTitle] = useState("Live do clube"),
+    [links, setLinks] = useState([{ channel: "", label: "" }]);
   const locked = useRef(false);
-  function populate(key: string, available: Broadcast[]) {
-    const existing = available.find((item) => (item.roomId ?? "home") === key);
-    setSelected(key);
-    setTitle(existing?.title ?? "Transmissão da Brasa");
-    setEnabled(existing?.enabled ?? false);
-    setPromoteHome(existing?.promoteHome ?? false);
-    setVersion(existing?.version ?? 0);
-    setPreview(null);
-    setChannels(
-      existing?.channels.length
-        ? existing.channels.map((item) => ({
-            label: item.label,
-            channel: streamUrl(item),
-          }))
-        : [{ channel: "", label: "" }],
-    );
-    setError("");
-    setNotice("");
-  }
+  const home = broadcasts.find((item) => item.roomId === null);
   useEffect(() => {
     const ctrl = new AbortController();
-    setLoaded(false);
     setError("");
+    setRooms(null);
     (async () => {
       try {
-        // Auth requests stay serialized by adminFetch, including cookie refresh.
-        const configReply = await request("/api/admin/streams", {
+        const configs = await adminBroadcasts(ctrl.signal);
+        const response = await adminFetch("/api/scrims?scope=admin", {
+          cache: "no-store",
           signal: ctrl.signal,
         });
-        const roomReply = await request("/api/scrims?scope=admin", {
-          signal: ctrl.signal,
-        });
-        const items = parseBroadcasts(configReply.broadcasts);
-        if (!Array.isArray(roomReply))
-          throw new Error("Lista de salas inválida.");
-        if (ctrl.signal.aborted) return;
-        setConfigs(items);
-        setRooms(roomReply);
-        const wanted = new URLSearchParams(location.search).get("room");
-        const key = roomReply.some((item: ScrimSummary) => item.id === wanted)
-          ? wanted!
-          : superAdmin
-            ? "home"
-            : (roomReply[0]?.id ?? "");
-        populate(key, items);
-        setEditorOpen(!!wanted || items.length === 0);
-        setLoaded(true);
+        const rows = await response.json();
+        if (!response.ok || !Array.isArray(rows))
+          throw new Error(
+            rows?.error || "Não foi possível carregar os eventos.",
+          );
+        if (!ctrl.signal.aborted) {
+          setRooms(rows);
+          setBroadcasts(configs);
+        }
       } catch (err) {
         if (!ctrl.signal.aborted) setError((err as Error).message);
       }
     })();
     return () => ctrl.abort();
-  }, [retry, superAdmin]);
-  useEffect(() => {
-    if (!editorOpen || !loaded || !editorRef.current) return;
-    editorRef.current.focus({ preventScroll: true });
-    editorRef.current.scrollIntoView({
-      block: "start",
-      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-        ? "auto"
-        : "smooth",
-    });
-  }, [editorOpen, loaded]);
-  useEffect(() => {
-    if (busy || !focusAfterToggle.current || typeof document === "undefined")
-      return;
-    const key = focusAfterToggle.current;
-    focusAfterToggle.current = null;
-    Array.from(
-      document.querySelectorAll<HTMLButtonElement>("[data-stream-action]"),
-    )
-      .find((button) => button.dataset.streamAction === key)
-      ?.focus();
-  }, [configs, busy]);
-  const room = rooms.find((item) => item.id === selected);
-  const isHome = selected === "home";
-  const canPromote = !isHome && !!room?.access?.isPublic && canPublish;
-  function draft(show = enabled) {
-    return normalizeBroadcast({
-      title,
-      channels: channels.filter(
-        (item) => item.channel.trim() || item.label.trim(),
-      ),
-      enabled: show,
-      promoteHome: !isHome && promoteHome,
-    });
-  }
-  function move(index: number, offset: number) {
-    setChannels((items) => {
-      const next = [...items];
-      [next[index], next[index + offset]] = [
-        next[index + offset]!,
-        next[index]!,
-      ];
-      return next;
-    });
-    setPreview(null);
-  }
-  async function save(event?: FormEvent, show = true) {
-    event?.preventDefault();
-    if (!selected || locked.current) return;
-    locked.current = true;
-    setBusy(true);
+  }, [retry]);
+  function editHome() {
+    setTitle(home?.title ?? "Live do clube");
+    setLinks(
+      home?.channels.length
+        ? home.channels.map((item) => ({
+            channel: streamUrl(item),
+            label: item.label,
+          }))
+        : [{ channel: "", label: "" }],
+    );
+    setHomeOpen(true);
     setError("");
     setNotice("");
-    try {
-      const config = draft(show);
-      const result = await request("/api/admin/streams", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          ...config,
-          roomId: isHome ? null : selected,
-          expectedVersion: version,
-        }),
-      });
-      const saved = parseBroadcasts([result])[0]!;
-      const next = [
-        ...configs.filter((item) => item.roomId !== saved.roomId),
-        saved,
-      ];
-      setConfigs(next);
-      setVersion(saved.version);
-      setEnabled(saved.enabled);
-      setEditorOpen(false);
-      focusAfterToggle.current = saved.roomId ?? "home";
-      setPreview(null);
-      setNotice(
-        saved.enabled
-          ? `“${saved.title}” está em exibição. Os espectadores recebem a atualização em até 10 segundos.`
-          : `“${saved.title}” ficou guardada. Use “Exibir no site” quando quiser publicar.`,
-      );
-    } catch (err) {
-      if ((err as { status?: number }).status === 409) {
-        try {
-          const result = await request("/api/admin/streams");
-          const next = parseBroadcasts(result.broadcasts);
-          setConfigs(next);
-          populate(selected, next);
-        } catch {
-          setLoaded(false);
-        }
-      }
-      setError((err as Error).message);
-    } finally {
-      locked.current = false;
-      setBusy(false);
-    }
   }
-  async function toggle(savedConfig: Broadcast) {
+  async function write(
+    config: Pick<Broadcast, "title" | "channels" | "enabled" | "promoteHome">,
+  ) {
     if (locked.current) return;
     locked.current = true;
     setBusy(true);
-    setToggling(savedConfig.roomId ?? "home");
     setError("");
     setNotice("");
     try {
-      const targetRoom = rooms.find((item) => item.id === savedConfig.roomId);
-      // Visibility uses saved channels, never unfinished editor fields.
-      const result = await request("/api/admin/streams", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          roomId: savedConfig.roomId,
-          expectedVersion: savedConfig.version,
-          title: savedConfig.title,
-          channels: savedConfig.channels,
-          enabled: !savedConfig.enabled,
-          promoteHome:
-            savedConfig.promoteHome &&
-            !!targetRoom?.access?.isPublic &&
-            canPublish,
-        }),
-      });
-      const saved = parseBroadcasts([result])[0]!;
-      setConfigs((items) => [
-        ...items.filter((item) => item.roomId !== saved.roomId),
-        saved,
+      const result = await saveBroadcast(null, home?.version ?? 0, config);
+      setBroadcasts((items) => [
+        ...items.filter((item) => item.roomId !== null),
+        result,
       ]);
-      focusAfterToggle.current = saved.roomId ?? "home";
-      if ((saved.roomId ?? "home") === selected) {
-        setVersion(saved.version);
-        setEnabled(saved.enabled);
-      }
+      setHomeOpen(false);
       setNotice(
-        saved.enabled
-          ? `“${saved.title}” está em exibição. A galera recebe a atualização em até 10 segundos.`
-          : `“${saved.title}” foi ocultada do site. Os canais continuam salvos.`,
+        result.enabled
+          ? "Live exibindo na página inicial."
+          : "Live oculta da página inicial. Os links ficaram salvos.",
       );
     } catch (err) {
-      if ((err as { status?: number }).status === 409) {
-        try {
-          const result = await request("/api/admin/streams");
-          const next = parseBroadcasts(result.broadcasts);
-          setConfigs(next);
-          // Reload the editor as well; attaching a fresh version to an old
-          // draft could overwrite somebody else's channel changes later.
-          populate(selected, next);
-        } catch {
-          setLoaded(false);
-        }
-      }
       setError((err as Error).message);
+      if ((err as { status?: number }).status === 409) {
+        setRetry((value) => value + 1);
+        setHomeOpen(false);
+      }
     } finally {
       locked.current = false;
       setBusy(false);
-      setToggling(null);
     }
   }
-  if (!loaded)
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    try {
+      await write(
+        normalizeBroadcast({
+          title,
+          channels: links.filter(
+            (item) => item.channel.trim() || item.label.trim(),
+          ),
+          enabled: true,
+          promoteHome: false,
+        }),
+      );
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+  if (!rooms)
     return (
       <section className="card">
         {error ? (
@@ -308,351 +178,231 @@ function StreamsWorkspace({
             </button>
           </>
         ) : (
-          <p role="status">Carregando suas transmissões…</p>
+          <p role="status">Carregando eventos…</p>
         )}
       </section>
-    );
-  if (!selected)
-    return (
-      <>
-        <section className="card">
-          <h2>Crie uma sala para transmitir.</h2>
-          <p>Depois, volte aqui para adicionar as transmissões.</p>
-          <a href="/admin" className="button">
-            Ir para minhas salas
-          </a>
-        </section>
-        <RecordingsAdmin
-          rooms={rooms}
-          superAdmin={superAdmin}
-          canPublish={canPublish}
-          target={null}
-        />
-      </>
     );
   return (
     <>
       {error && (
-        <p role="alert" className="admin-form-error stream-feedback">
+        <p role="alert" className="admin-form-error">
           {error}
         </p>
       )}
       {notice && (
-        <p role="status" className="stream-notice stream-feedback">
+        <p role="status" className="stream-notice">
           {notice}
         </p>
       )}
-      <StreamVisibilityList
-        broadcasts={configs}
-        rooms={rooms}
-        busy={busy}
-        toggling={toggling}
-        canAdd={
-          (superAdmin && !configs.some((item) => item.roomId === null)) ||
-          rooms.some(
-            (item) => !configs.some((config) => config.roomId === item.id),
-          )
-        }
-        onEdit={(key) => {
-          populate(key, configs);
-          setEditorOpen(true);
-        }}
-        onAdd={() => {
-          const target =
-            superAdmin && !configs.some((item) => item.roomId === null)
-              ? "home"
-              : rooms.find(
-                  (item) =>
-                    !configs.some((config) => config.roomId === item.id),
-                )?.id;
-          if (target) {
-            populate(target, configs);
-            setEditorOpen(true);
-          }
-        }}
-        onToggle={(item) => void toggle(item)}
-        onRecord={(item) => {
-          setEditorOpen(false);
-          setPreview(null);
-          setRecordingTarget({
-            roomId: item.roomId,
-            title: item.title,
-            source: item.channels[0],
-          });
-        }}
-      />
-      {editorOpen && (
-        <section
-          className="stream-editor-shell"
-          aria-labelledby="stream-editor-title"
-          tabIndex={-1}
-          ref={editorRef}
-        >
-          <div className="stream-editor-heading">
-            <div>
-              <h2 id="stream-editor-title">
-                {version > 0 ? "Editar canais" : "Adicionar transmissão"}
-              </h2>
-              <p>
-                {version > 0
-                  ? "A exibição é controlada pelos botões acima."
-                  : "Cole os canais e escolha onde exibir."}
-              </p>
-            </div>
-            <button
-              type="button"
-              className="ghost"
-              disabled={busy}
-              onClick={() => {
-                setEditorOpen(false);
-                setPreview(null);
-                setError("");
-              }}
-            >
-              Cancelar
-            </button>
+      <section
+        className="event-media-directory"
+        aria-labelledby="media-directory-title"
+      >
+        <h2 id="media-directory-title">Mídia dos eventos</h2>
+        <p className="muted">
+          Os links ao vivo e os vídeos gravados são configurados dentro de cada
+          evento.
+        </p>
+        {rooms.length ? (
+          <ul>
+            {rooms.map((room) => {
+              const config = broadcasts.find((item) => item.roomId === room.id);
+              return (
+                <li key={room.id}>
+                  <div>
+                    <h3>{room.title}</h3>
+                    <p>
+                      {config?.enabled
+                        ? "Live exibindo neste evento"
+                        : config?.channels.length
+                          ? "Live oculta · links salvos"
+                          : "Sem live cadastrada"}
+                      {!room.access?.isPublic ? " · evento oculto" : ""}
+                    </p>
+                  </div>
+                  <a
+                    className="button"
+                    href={`/s/${room.id}?media=live#event-media`}
+                  >
+                    Abrir lives e gravações
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <div className="stream-visibility-empty">
+            <p>
+              <strong>Comece criando um evento.</strong>
+              <span>Depois, cole os links no player da própria scrim.</span>
+            </p>
+            <a href="/admin" className="button">
+              Criar evento
+            </a>
           </div>
-          <form
-            className="stream-configuration"
-            onSubmit={(event) => void save(event)}
-          >
-            <section className="stream-destination">
-              <h2>Onde a galera vai assistir?</h2>
-              <label>
-                Local da transmissão
-                <select
-                  name="stream-destination"
-                  disabled={busy || version > 0}
-                  value={selected}
-                  onChange={(event) => populate(event.target.value, configs)}
-                >
-                  {superAdmin &&
-                    (isHome ||
-                      !configs.some((item) => item.roomId === null)) && (
-                      <option value="home">Página inicial · sem evento</option>
-                    )}
-                  {rooms
-                    .filter(
-                      (item) =>
-                        item.id === selected ||
-                        !configs.some((config) => config.roomId === item.id),
-                    )
-                    .map((item) => (
-                      <option value={item.id} key={item.id}>
-                        {item.title}
-                        {item.access?.isPublic ? "" : " (sala oculta)"}
-                      </option>
-                    ))}
-                </select>
-              </label>
+        )}
+      </section>
+      {superAdmin && (
+        <section className="event-home-promotion">
+          <div className="stream-overview-heading">
+            <div>
+              <h2>Divulgar uma live sem evento</h2>
               <p>
-                {isHome
-                  ? "O player e o chat aparecem direto na página inicial."
-                  : "O player e o chat ficam dentro desta sala, junto dos times, mapas e resultados."}
+                Aparece direto na página inicial. Use esta opção só para
+                divulgação do clube.
               </p>
-              {!isHome && <a href={`/s/${selected}?live=1`}>Abrir a sala</a>}
-            </section>
-            <section className="stream-channel-editor">
-              <h2>Quem vai transmitir?</h2>
+              <strong className="event-media-status">
+                {home?.enabled
+                  ? "Exibindo na página inicial"
+                  : home?.channels.length
+                    ? "Oculta · links salvos"
+                    : "Nenhuma live independente"}
+              </strong>
+            </div>
+            <div className="event-media-actions">
+              <button type="button" disabled={busy} onClick={editHome}>
+                {home?.channels.length
+                  ? "Editar links da página inicial"
+                  : "Adicionar link na página inicial"}
+              </button>
+              {home?.channels.length ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    void write({
+                      title: home.title,
+                      channels: home.channels,
+                      enabled: !home.enabled,
+                      promoteHome: false,
+                    })
+                  }
+                >
+                  {busy
+                    ? "Salvando…"
+                    : home.enabled
+                      ? "Ocultar da página inicial"
+                      : "Exibir na página inicial"}
+                </button>
+              ) : null}
+            </div>
+          </div>
+          {homeOpen && (
+            <form
+              className="event-live-form"
+              onSubmit={(event) => void submit(event)}
+            >
               <label>
-                Título
+                Título na página inicial
                 <input
                   name="stream-title"
                   maxLength={100}
                   required
                   value={title}
                   disabled={busy}
-                  onChange={(event) => {
-                    setTitle(event.target.value);
-                    setPreview(null);
-                  }}
+                  onChange={(event) => setTitle(event.target.value)}
                 />
               </label>
-              <ol className="stream-channel-list">
-                {channels.map((item, index) => (
-                  <li key={index}>
-                    <div className="stream-channel-fields">
-                      <label>
-                        Link da transmissão
-                        <input
-                          aria-label={`Canal ${index + 1}`}
-                          placeholder="Link da Twitch, YouTube ou Kick"
-                          value={item.channel}
-                          maxLength={300}
-                          disabled={busy}
-                          onChange={(event) => {
-                            setChannels((items) =>
-                              items.map((entry, at) =>
-                                at === index
-                                  ? { ...entry, channel: event.target.value }
-                                  : entry,
-                              ),
-                            );
-                            setPreview(null);
-                          }}
-                        />
-                      </label>
-                      <label>
-                        Nome de exibição{" "}
-                        <span className="muted">(opcional)</span>
-                        <input
-                          aria-label={`Nome do canal ${index + 1}`}
-                          placeholder="Sua visão, narrador, POV…"
-                          value={item.label}
-                          maxLength={40}
-                          disabled={busy}
-                          onChange={(event) => {
-                            setChannels((items) =>
-                              items.map((entry, at) =>
-                                at === index
-                                  ? { ...entry, label: event.target.value }
-                                  : entry,
-                              ),
-                            );
-                            setPreview(null);
-                          }}
-                        />
-                      </label>
-                    </div>
-                    <div className="stream-channel-actions">
-                      <button
-                        type="button"
-                        aria-label={`Subir canal ${index + 1}`}
-                        disabled={busy || index === 0}
-                        onClick={() => move(index, -1)}
-                      >
-                        ↑
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`Descer canal ${index + 1}`}
-                        disabled={busy || index === channels.length - 1}
-                        onClick={() => move(index, 1)}
-                      >
-                        ↓
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost"
-                        disabled={busy}
-                        aria-label={`Remover canal ${index + 1}`}
-                        onClick={() => {
-                          setChannels((items) =>
-                            items.filter((_, at) => at !== index),
-                          );
-                          setPreview(null);
-                        }}
-                      >
-                        Remover
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ol>
+              {links.map((item, index) => (
+                <div className="event-live-link" key={index}>
+                  <label>
+                    Link {index + 1}
+                    <input
+                      aria-label={`Canal ${index + 1}`}
+                      maxLength={300}
+                      placeholder="Twitch, YouTube ou Kick"
+                      value={item.channel}
+                      disabled={busy}
+                      onChange={(event) =>
+                        setLinks((items) =>
+                          items.map((entry, at) =>
+                            at === index
+                              ? { ...entry, channel: event.target.value }
+                              : entry,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                  <label>
+                    Nome (opcional)
+                    <input
+                      aria-label={`Nome do canal ${index + 1}`}
+                      maxLength={40}
+                      value={item.label}
+                      disabled={busy}
+                      onChange={(event) =>
+                        setLinks((items) =>
+                          items.map((entry, at) =>
+                            at === index
+                              ? { ...entry, label: event.target.value }
+                              : entry,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                  {links.length > 1 && (
+                    <button
+                      type="button"
+                      className="ghost"
+                      disabled={busy}
+                      onClick={() =>
+                        setLinks((items) =>
+                          items.filter((_, at) => at !== index),
+                        )
+                      }
+                    >
+                      Remover link {index + 1}
+                    </button>
+                  )}
+                </div>
+              ))}
               <button
                 type="button"
-                className="ghost"
-                disabled={busy || channels.length >= MAX_STREAM_CHANNELS}
+                disabled={busy || links.length >= 6}
                 onClick={() =>
-                  setChannels((items) => [...items, { channel: "", label: "" }])
+                  setLinks((items) => [...items, { channel: "", label: "" }])
                 }
               >
-                Adicionar canal
+                Adicionar outra perspectiva
               </button>
-              <p className="muted small">
-                Até seis canais. A ordem acima será a ordem das setas. Cada
-                espectador escolhe o seu.
-              </p>
-            </section>
-            <section className="stream-publish">
-              {!isHome && (
-                <label className="stream-checkbox">
-                  <input
-                    type="checkbox"
-                    name="stream-promote"
-                    checked={promoteHome}
-                    disabled={busy || (!canPromote && !promoteHome)}
-                    onChange={(event) => setPromoteHome(event.target.checked)}
-                  />
-                  <span>
-                    <strong>Divulgar também na página inicial</strong>
-                    <small>
-                      {canPromote
-                        ? "A galera vê um destaque na home e entra nesta sala para assistir."
-                        : "Disponível para salas públicas e para quem pode publicar salas."}
-                    </small>
-                  </span>
-                </label>
-              )}
-              <div className="stream-save-actions">
-                <button type="submit" className="primary" disabled={busy}>
-                  {busy && !toggling
-                    ? "Salvando…"
-                    : enabled
-                      ? "Salvar alterações"
-                      : "Salvar e exibir"}
+              <div className="event-media-actions">
+                <button className="primary" type="submit" disabled={busy}>
+                  {busy ? "Salvando…" : "Salvar e exibir na página inicial"}
                 </button>
-                {!enabled && (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void save(undefined, false)}
-                  >
-                    Salvar sem exibir
-                  </button>
-                )}
                 <button
                   type="button"
+                  className="ghost"
                   disabled={busy}
-                  onClick={() => {
-                    try {
-                      const value = draft();
-                      if (!value.channels.length)
-                        throw new Error(
-                          "Adicione um canal para abrir a prévia.",
-                        );
-                      setPreview({
-                        ...value,
-                        enabled: true,
-                        roomId: isHome ? null : selected,
-                        version,
-                      });
-                      setError("");
-                    } catch (err) {
-                      setError((err as Error).message);
-                    }
-                  }}
+                  onClick={() => setHomeOpen(false)}
                 >
-                  Testar player e chat
+                  Cancelar links
                 </button>
               </div>
-              <p className="muted small">
-                Cole o link de uma live da Twitch, YouTube ou Kick. No YouTube,
-                use o link da live ou do vídeo, não o endereço do canal. Esta
-                opção exibe o player no site; inicie a live normalmente na
-                plataforma.
-              </p>
-            </section>
-          </form>
-          {preview && (
-            <div className="stream-admin-preview">
-              <div className="stream-preview-heading">
-                <h2>Prévia só para você</h2>
-                <button type="button" onClick={() => setPreview(null)}>
-                  Fechar prévia
-                </button>
-              </div>
-              <StreamPlayer key={selected} broadcast={preview} />
-            </div>
+            </form>
           )}
         </section>
       )}
-      <RecordingsAdmin
-        rooms={rooms}
-        superAdmin={superAdmin}
-        canPublish={canPublish}
-        target={recordingTarget}
-      />
+      <details
+        className="event-general-archive"
+        open={archiveOpen}
+        onToggle={(event) => setArchiveOpen(event.currentTarget.open)}
+      >
+        <summary>Acervo geral de gravações</summary>
+        <p className="muted">
+          Para adicionar gravações de uma scrim, prefira o próprio evento. Este
+          acervo reúne os registros que você pode administrar.
+        </p>
+        {archiveOpen && (
+          <RecordingsAdmin
+            rooms={rooms}
+            superAdmin={superAdmin}
+            canPublish={canPublish}
+            target={null}
+          />
+        )}
+      </details>
     </>
   );
 }

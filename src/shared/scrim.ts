@@ -75,7 +75,14 @@ export interface SeriesMap {
   source?: ImportSource;
 }
 
-export type Phase = 'setup' | 'veto' | 'live' | 'finished';
+export type Phase = 'setup' | 'veto' | 'live' | 'paused' | 'finished';
+
+export interface TechnicalPause {
+  reason: string;
+  pausedAt: number;
+  /** Exact stage restored on resume; a technical draw does not finish a series. */
+  resumePhase: 'setup' | 'veto' | 'live';
+}
 
 export interface ScrimState {
   id: string;
@@ -87,6 +94,8 @@ export interface ScrimState {
   teams: Record<TeamId, Team>;
   players: Player[];
   phase: Phase;
+  /** Present only during a resumable technical draw; previous pauses stay in the event log. */
+  technicalPause?: TechnicalPause;
   /** Time que é o "Team A" do rulebook (começa o veto). */
   vetoFirst: TeamId | null;
   veto: VetoEntry[];
@@ -102,6 +111,8 @@ export interface ScrimState {
 // ─── Comandos (o que o admin envia) ──────────────────────────────────────────
 
 export type Command =
+  | { type: 'scrim.pause'; reason: string }
+  | { type: 'scrim.resume' }
   | { type: 'settings.update'; title?: string; format?: SeriesFormat; pool?: MapId[] }
   | { type: 'team.rename'; team: TeamId; name: string }
   | { type: 'team.captain'; team: TeamId; playerId: string | null }
@@ -304,11 +315,33 @@ export function replay(events: readonly ScrimEvent[]): ScrimState {
 }
 
 function reduce(s: ScrimState, e: ScrimEvent, legacy = false): ScrimState {
+  if (s.phase === 'paused') {
+    assert(e.type === 'scrim.resume' || e.type === 'note.add' || e.type === 'room.focus',
+      'A scrim está em empate técnico. Retome a scrim antes de editar o jogo.');
+  }
   if (e.type === 'room.focus' || e.type === 'draw.start' || e.type === 'draw.accept' || e.type === 'draw.reject') {
     return applyRoomToolsEvent(s, e);
   }
   assert(!activeDraw(s, e.at), 'Conclua ou descarte o sorteio antes de editar a sala.');
   switch (e.type) {
+    case 'scrim.pause': {
+      const resumePhase = s.phase;
+      assert(resumePhase === 'setup' || resumePhase === 'veto' || resumePhase === 'live', 'O empate técnico só pode pausar uma scrim em preparação, veto ou partida.');
+      assert(Number.isSafeInteger(e.at) && e.at >= 0, 'Horário do empate técnico inválido.');
+      const reason = cleanText(e.reason, MAX_NOTE, 'Motivo do empate técnico');
+      assert(!/[\u0000-\u001f\u007f]/.test(reason), 'Motivo do empate técnico inválido.');
+      return { ...s, phase: 'paused', technicalPause: { reason, pausedAt: e.at, resumePhase } };
+    }
+
+    case 'scrim.resume': {
+      requirePhase(s, 'paused');
+      const pause = s.technicalPause;
+      assert(pause && ['setup', 'veto', 'live'].includes(pause.resumePhase), 'A fase anterior da pausa está indisponível.');
+      assert(Number.isSafeInteger(e.at) && e.at >= pause.pausedAt, 'Horário da retomada inválido.');
+      const { technicalPause: _pause, ...rest } = s;
+      return { ...rest, phase: pause.resumePhase };
+    }
+
     case 'match.import':
       return applyMatchImport(s, e, e.at);
 

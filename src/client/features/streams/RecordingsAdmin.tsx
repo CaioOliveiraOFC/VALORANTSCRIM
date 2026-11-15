@@ -4,7 +4,6 @@ import {
   type RecordingsPage,
   type StreamRecording,
 } from "../../../shared/recordings";
-import type { ScrimSummary } from "../../../shared/protocol";
 import {
   PLATFORM_NAMES,
   streamPlatform,
@@ -19,16 +18,29 @@ export interface RecordingTarget {
   title: string;
   source?: StreamChannel;
 }
+export interface RecordingRoom {
+  id: string;
+  title: string;
+  access?: { isPublic: boolean };
+}
 export function RecordingsAdmin({
   rooms,
   superAdmin,
   canPublish,
   target,
+  roomId,
+  compact = false,
+  onChange,
+  onPlay,
 }: {
-  rooms: ScrimSummary[];
+  rooms: RecordingRoom[];
   superAdmin: boolean;
   canPublish: boolean;
   target: RecordingTarget | null;
+  roomId?: string;
+  compact?: boolean;
+  onChange?: () => void;
+  onPlay?: (recording: StreamRecording) => void;
 }) {
   const [page, setPage] = useState<RecordingsPage | null>(null),
     [error, setError] = useState(""),
@@ -43,17 +55,29 @@ export function RecordingsAdmin({
     [retry, setRetry] = useState(0);
   const locked = useRef(false),
     formRef = useRef<HTMLFormElement>(null);
+  const scopeRef = useRef(roomId);
+  scopeRef.current = roomId;
+  const inScope = (item: StreamRecording) => !roomId || item.roomId === roomId;
+  const scopePage = (value: RecordingsPage): RecordingsPage => ({
+    ...value,
+    recordings: value.recordings.filter(inScope),
+  });
+  const effectiveDestination = roomId ?? destination;
   const publicAllowed =
-    destination === "home"
+    effectiveDestination === "home"
       ? superAdmin
       : canPublish &&
-        !!rooms.find((item) => item.id === destination)?.access?.isPublic;
+        !!rooms.find((item) => item.id === effectiveDestination)?.access
+          ?.isPublic;
   useEffect(() => {
     let disposed = false;
     setError("");
-    listRecordings(true)
+    setNotice("");
+    setPage(null);
+    setFormOpen(false);
+    listRecordings(true, 0, roomId)
       .then((p) => {
-        if (!disposed) setPage(p);
+        if (!disposed) setPage(scopePage(p));
       })
       .catch((e) => {
         if (!disposed) setError(e.message);
@@ -61,28 +85,37 @@ export function RecordingsAdmin({
     return () => {
       disposed = true;
     };
-  }, [retry]);
+  }, [retry, roomId]);
   function begin(value?: RecordingTarget) {
-    const roomId = value
-      ? value.roomId
-      : superAdmin
-        ? null
-        : (rooms[0]?.id ?? null);
-    setDestination(roomId ?? "home");
-    setTitle(value?.title ?? "Replay da Brasa");
-    setLabel(value?.source?.label ?? "");
+    const scopedTarget =
+      !roomId || value?.roomId === roomId ? value : undefined;
+    const destinationRoomId =
+      roomId ??
+      (scopedTarget
+        ? scopedTarget.roomId
+        : superAdmin
+          ? null
+          : (rooms[0]?.id ?? null));
+    setDestination(destinationRoomId ?? "home");
+    setTitle(
+      scopedTarget?.title ??
+        rooms.find((item) => item.id === roomId)?.title ??
+        "Replay da Brasa",
+    );
+    setLabel(scopedTarget?.source?.label ?? "");
     setUrl(
-      value?.source &&
-        (streamPlatform(value.source) === "youtube" ||
-          value.source.kind === "video")
-        ? streamUrl(value.source)
+      scopedTarget?.source &&
+        (streamPlatform(scopedTarget.source) === "youtube" ||
+          scopedTarget.source.kind === "video")
+        ? streamUrl(scopedTarget.source)
         : "",
     );
     setPublic(
-      roomId === null
+      destinationRoomId === null
         ? superAdmin
         : canPublish &&
-            !!rooms.find((item) => item.id === roomId)?.access?.isPublic,
+            !!rooms.find((item) => item.id === destinationRoomId)?.access
+              ?.isPublic,
     );
     setError("");
     setNotice("");
@@ -90,7 +123,7 @@ export function RecordingsAdmin({
   }
   useEffect(() => {
     if (target) begin(target);
-  }, [target]);
+  }, [target, roomId]);
   useEffect(() => {
     if (formOpen && formRef.current) {
       formRef.current.scrollIntoView({ block: "start", behavior: "auto" });
@@ -106,13 +139,14 @@ export function RecordingsAdmin({
     setBusy(true);
     setError("");
     setNotice("");
+    const operationScope = roomId;
     try {
       const result = parseRecording(
         await recordingRequest("/api/admin/stream-recordings", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
-            roomId: destination === "home" ? null : destination,
+            roomId: roomId ?? (destination === "home" ? null : destination),
             title,
             url,
             label,
@@ -120,6 +154,11 @@ export function RecordingsAdmin({
           }),
         }),
       );
+      if (scopeRef.current !== operationScope) return;
+      if (!inScope(result))
+        throw new Error(
+          "A gravação não corresponde a este evento. Atualize antes de tentar novamente.",
+        );
       setPage((current) => ({
         recordings: [result, ...(current?.recordings ?? [])],
         total: (current?.total ?? 0) + 1,
@@ -129,7 +168,9 @@ export function RecordingsAdmin({
       setNotice(
         `“${result.title}” foi adicionada ao histórico${result.isPublic ? " e aparece no acervo público" : " como gravação oculta"}.`,
       );
+      onChange?.();
     } catch (err) {
+      if (scopeRef.current !== operationScope) return;
       setError((err as Error).message);
       if ((err as { status?: number }).status === 409) setRetry((v) => v + 1);
     } finally {
@@ -138,11 +179,12 @@ export function RecordingsAdmin({
     }
   }
   async function toggle(item: StreamRecording) {
-    if (locked.current) return;
+    if (locked.current || !inScope(item)) return;
     locked.current = true;
     setBusy(true);
     setError("");
     setNotice("");
+    const operationScope = roomId;
     try {
       const next = parseRecording(
         await recordingRequest(`/api/admin/stream-recordings/${item.id}`, {
@@ -154,6 +196,11 @@ export function RecordingsAdmin({
           }),
         }),
       );
+      if (scopeRef.current !== operationScope) return;
+      if (!inScope(next))
+        throw new Error(
+          "A gravação não corresponde a este evento. Atualize antes de tentar novamente.",
+        );
       setPage((current) =>
         current
           ? {
@@ -169,7 +216,9 @@ export function RecordingsAdmin({
           ? "Replay publicado no acervo."
           : "Replay oculto. O registro continua no histórico.",
       );
+      onChange?.();
     } catch (err) {
+      if (scopeRef.current !== operationScope) return;
       setError((err as Error).message);
       if ((err as { status?: number }).status === 409) setRetry((v) => v + 1);
     } finally {
@@ -181,8 +230,12 @@ export function RecordingsAdmin({
     if (!page || page.nextOffset === null || locked.current) return;
     locked.current = true;
     setBusy(true);
+    const operationScope = roomId;
     try {
-      const next = await listRecordings(true, page.nextOffset);
+      const next = scopePage(
+        await listRecordings(true, page.nextOffset, roomId),
+      );
+      if (scopeRef.current !== operationScope) return;
       setPage({
         ...next,
         recordings: [
@@ -193,6 +246,7 @@ export function RecordingsAdmin({
         ],
       });
     } catch (err) {
+      if (scopeRef.current !== operationScope) return;
       setError((err as Error).message);
     } finally {
       locked.current = false;
@@ -201,19 +255,31 @@ export function RecordingsAdmin({
   }
   return (
     <section
-      className="recordings-admin"
-      aria-labelledby="recordings-admin-title"
+      className={`recordings-admin${compact ? " is-compact" : ""}`}
+      aria-labelledby={
+        roomId ? `recordings-admin-title-${roomId}` : "recordings-admin-title"
+      }
     >
       <div className="stream-overview-heading">
         <div>
-          <h2 id="recordings-admin-title">Histórico de gravações</h2>
+          <h2
+            id={
+              roomId
+                ? `recordings-admin-title-${roomId}`
+                : "recordings-admin-title"
+            }
+          >
+            {compact ? "Gravações do evento" : "Histórico de gravações"}
+          </h2>
           <p>
-            Guarde o link do replay, sem perder o registro quando trocar a live.
+            {compact
+              ? "Cole o link do vídeo salvo para a galera rever esta scrim."
+              : "Guarde o link do replay, sem perder o registro quando trocar a live."}
           </p>
         </div>
         {page && (superAdmin || rooms.length > 0) && (
           <button type="button" disabled={busy} onClick={() => begin()}>
-            Adicionar replay
+            {compact ? "Adicionar gravação" : "Adicionar replay"}
           </button>
         )}
       </div>
@@ -232,39 +298,53 @@ export function RecordingsAdmin({
           {notice}
         </p>
       )}
+      {!page && !error && (
+        <p role="status" className="muted">
+          Carregando gravações…
+        </p>
+      )}
       {formOpen && page && (
         <form
           ref={formRef}
           className="recording-form"
           onSubmit={(event) => void save(event)}
         >
-          <h3>Registrar gravação</h3>
-          <label>
-            Vincular a
-            <select
-              value={destination}
-              disabled={busy}
-              onChange={(event) => {
-                const key = event.target.value;
-                setDestination(key);
-                setPublic(
-                  key === "home"
-                    ? superAdmin
-                    : canPublish &&
-                        !!rooms.find((item) => item.id === key)?.access
-                          ?.isPublic,
-                );
-              }}
-            >
-              {superAdmin && <option value="home">Clube · sem evento</option>}
-              {rooms.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title}
-                  {item.access?.isPublic ? "" : " (sala oculta)"}
-                </option>
-              ))}
-            </select>
-          </label>
+          <h3>
+            {compact ? "Adicionar gravação deste evento" : "Registrar gravação"}
+          </h3>
+          {roomId ? (
+            <p className="muted small">
+              Evento:{" "}
+              {rooms.find((item) => item.id === roomId)?.title ?? roomId}
+            </p>
+          ) : (
+            <label>
+              Vincular a
+              <select
+                value={destination}
+                disabled={busy}
+                onChange={(event) => {
+                  const key = event.target.value;
+                  setDestination(key);
+                  setPublic(
+                    key === "home"
+                      ? superAdmin
+                      : canPublish &&
+                          !!rooms.find((item) => item.id === key)?.access
+                            ?.isPublic,
+                  );
+                }}
+              >
+                {superAdmin && <option value="home">Clube · sem evento</option>}
+                {rooms.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title}
+                    {item.access?.isPublic ? "" : " (sala oculta)"}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label>
             Título da gravação
             <input
@@ -313,7 +393,11 @@ export function RecordingsAdmin({
               onChange={(event) => setPublic(event.target.checked)}
             />
             <span>
-              <strong>Mostrar no acervo público</strong>
+              <strong>
+                {compact
+                  ? "Mostrar gravação para espectadores"
+                  : "Mostrar no acervo público"}
+              </strong>
               <small>
                 {publicAllowed
                   ? "A galera poderá rever pelo site."
@@ -323,14 +407,18 @@ export function RecordingsAdmin({
           </label>
           <div className="stream-save-actions">
             <button type="submit" className="primary" disabled={busy}>
-              {busy ? "Salvando…" : "Salvar replay"}
+              {busy
+                ? "Salvando…"
+                : compact
+                  ? "Salvar gravação"
+                  : "Salvar replay"}
             </button>
             <button
               type="button"
               disabled={busy}
               onClick={() => setFormOpen(false)}
             >
-              Cancelar replay
+              {compact ? "Cancelar gravação" : "Cancelar replay"}
             </button>
           </div>
         </form>
@@ -343,7 +431,7 @@ export function RecordingsAdmin({
       )}
       {page && page.recordings.length > 0 && (
         <ul className="recording-admin-list">
-          {page.recordings.map((item) => {
+          {page.recordings.filter(inScope).map((item) => {
             const canShow =
               item.roomId === null
                 ? superAdmin
@@ -372,7 +460,17 @@ export function RecordingsAdmin({
                   </p>
                 </div>
                 <div className="recording-actions">
-                  <a href={`/gravacoes?replay=${item.id}`}>Assistir replay</a>
+                  {onPlay ? (
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={() => onPlay(item)}
+                    >
+                      Assistir gravação
+                    </button>
+                  ) : (
+                    <a href={`/gravacoes?replay=${item.id}`}>Assistir replay</a>
+                  )}
                   <button
                     type="button"
                     disabled={busy || (!item.isPublic && !canShow)}
@@ -392,11 +490,13 @@ export function RecordingsAdmin({
           Ver mais gravações
         </button>
       )}
-      <p className="stream-visibility-footnote">
-        <a href="/gravacoes">Abrir acervo público</a>. O site guarda os links,
-        sem copiar os arquivos de vídeo. Ocultar uma transmissão ao vivo não
-        cria nem apaga replays.
-      </p>
+      {!compact && (
+        <p className="stream-visibility-footnote">
+          <a href="/gravacoes">Abrir acervo público</a>. O site guarda os links,
+          sem copiar os arquivos de vídeo. Ocultar uma transmissão ao vivo não
+          cria nem apaga replays.
+        </p>
+      )}
     </section>
   );
 }

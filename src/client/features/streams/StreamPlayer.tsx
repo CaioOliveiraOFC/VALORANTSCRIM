@@ -69,11 +69,17 @@ function ProviderVideo({
   );
 }
 
-export function StreamPlayer({ broadcast }: { broadcast: Broadcast }) {
+export function StreamPlayer({
+  broadcast,
+  compact = false,
+}: {
+  broadcast: Broadcast;
+  compact?: boolean;
+}) {
   const [selection, setSelection] = useState(() =>
     broadcast.channels[0] ? streamIdentity(broadcast.channels[0]) : "",
   );
-  const [chatOpen, setChatOpen] = useState(true);
+  const [chatOpen, setChatOpen] = useState(!compact);
   const channels = broadcast.channels;
   const index = Math.max(
     0,
@@ -98,7 +104,10 @@ export function StreamPlayer({ broadcast }: { broadcast: Broadcast }) {
       ),
     );
   return (
-    <section className="stream-theater" aria-label={broadcast.title}>
+    <section
+      className={`stream-theater${compact ? " is-compact" : ""}`}
+      aria-label={broadcast.title}
+    >
       <header className="stream-heading">
         <div>
           <h2>{broadcast.title}</h2>

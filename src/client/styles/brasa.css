@@ -210,6 +210,16 @@
 .club-phase.finished i {
   background: var(--ok);
 }
+.badge.paused,
+.admin-room-visibility.is-paused,
+.super-status.is-paused {
+  color: #e6c58d;
+  background: #30281d;
+  border-color: #746044;
+}
+.club-phase.paused i {
+  background: #d9b77c;
+}
 .club-feature-context {
   margin: 26px 0 7px;
   color: var(--muted);
