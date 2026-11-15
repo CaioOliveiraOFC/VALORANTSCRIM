@@ -47,7 +47,7 @@ export function HomeFeatureControl({ rooms }: { rooms: ScrimSummary[] }) {
       });
     return () => ctrl.abort();
   }, [retry]);
-  const published = rooms.filter((room) => room.access?.isPublic && room.access.deletedAt === null);
+  const published = rooms.filter((room) => room.access?.isPublic && room.access.deletedAt === null && room.phase !== 'paused');
   const stale = current?.roomId && !published.some((room) => room.id === current.roomId);
   async function save() {
     if (!current || locked.current) return;

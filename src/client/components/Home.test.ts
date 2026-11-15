@@ -75,6 +75,29 @@ it('ignores an old response when the auth context changes and clears the old lis
 it('explains an empty completed history when only active public rooms exist', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => response([room])));
   await act(async () => { renderer = create(createElement(Home, {filter:'finished'})); }); await flush();
-  expect(text(renderer!.root)).toContain('Ainda não há VCTs encerrados.');
+  expect(text(renderer!.root)).toContain('Ainda não há VCTs encerrados ou em empate técnico.');
   expect(text(renderer!.root)).not.toContain('Sala pública');
+});
+
+it('moves a technical draw out of the VCT listing and into history with the actual score intact', async () => {
+  const paused = { ...room, id: 'paused1', title: 'Churras da laje', phase: 'paused', score: [1, 0] };
+  vi.stubGlobal('fetch', vi.fn(async () => response([room, paused])));
+  await mount();
+  expect(text(renderer!.root)).not.toContain('Churras da laje');
+  await act(async () => { renderer!.update(createElement(Home, { filter: 'active' })); });
+  expect(text(renderer!.root)).not.toContain('Churras da laje');
+  await act(async () => { renderer!.update(createElement(Home, { filter: 'finished' })); });
+  expect(text(renderer!.root)).toContain('Churras da laje');
+  expect(text(renderer!.root)).toContain('Empate técnico · pode retomar');
+  expect(renderer!.root.findAllByType('b').map(node => text(node))).toEqual(['1', '0']);
+});
+
+it('returns a resumed event to the public VCT list on the next refresh', async () => {
+  let phase = 'paused';
+  vi.stubGlobal('fetch', vi.fn(async () => response([{ ...room, title: 'Churras da laje', phase }])));
+  await mount(); expect(text(renderer!.root)).not.toContain('Churras da laje');
+  phase = 'live';
+  await act(async () => { vi.advanceTimersByTime(10000); }); await flush();
+  expect(text(renderer!.root)).toContain('Churras da laje');
+  expect(text(renderer!.root)).toContain('Ao vivo');
 });

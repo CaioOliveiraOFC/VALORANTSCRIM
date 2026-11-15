@@ -123,7 +123,11 @@ export function toMarkdown(state: ScrimState): string {
   lines.push(`# ${state.title}`, '');
   lines.push(`- **Data:** ${fmtDate(state.createdAt)}`);
   lines.push(`- **Formato:** ${FORMAT_LABEL[state.format]}`);
-  lines.push(`- **Placar da série:** ${t('A')} ${score.A} x ${score.B} ${t('B')}${winner ? ` — vitória de **${t(winner)}**` : ' (em andamento)'}`);
+  lines.push(`- **Placar da série:** ${t('A')} ${score.A} x ${score.B} ${t('B')}${state.phase === 'paused' ? ' (empate técnico · pode retomar)' : winner ? ` — vitória de **${t(winner)}**` : ' (em andamento)'}`);
+  if (state.phase === 'paused' && state.technicalPause) {
+    lines.push(`- **Empate técnico desde:** ${fmtDate(state.technicalPause.pausedAt)}`);
+    lines.push(`- **Motivo:** ${markdownText(state.technicalPause.reason)}`);
+  }
   lines.push('');
 
   lines.push('## Times', '');

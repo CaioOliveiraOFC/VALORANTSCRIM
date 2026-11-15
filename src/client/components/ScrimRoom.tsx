@@ -14,7 +14,8 @@ import { ReportPanel } from './ReportPanel';
 import { TeamsPanel } from './TeamsPanel';
 import { Timeline } from './Timeline';
 import { VetoPanel } from './VetoPanel';
-import { RoomStreams } from '../features/streams/PublicStreams';
+import { EventMedia } from '../features/streams/EventMedia';
+import { ScrimLifecycle } from './ScrimLifecycle';
 
 interface RoomCtx {
   importRequest: ReturnType<typeof useScrim>['importRequest'];
@@ -44,7 +45,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 const tabForPhase = (phase: ScrimState['phase']): Tab =>
-  ({ setup: 'teams', veto: 'veto', live: 'match', finished: 'report' } as const)[phase];
+  ({ setup: 'teams', veto: 'veto', live: 'match', finished: 'report', paused: 'report' } as const)[phase];
 
 export function ScrimRoom({ scrimId }: { scrimId: string }) {
   const { state, events, access, role, can, isSuperAdmin, status, presence, send, importRequest, roomRequest, serverOffset } = useScrim(scrimId);
@@ -163,7 +164,8 @@ export function ScrimRoom({ scrimId }: { scrimId: string }) {
     [send],
   );
 
-  const ctx = useMemo(() => (state ? { state, isAdmin, can, act, importRequest } : null), [state, isAdmin, can, act, importRequest]);
+  const gameCan = useCallback((permission: Parameters<typeof can>[0]) => can(permission) && !(state?.phase === 'paused' && ['manageTeams', 'manageVeto', 'importMatches', 'correctStats'].includes(permission)), [can, state?.phase]);
+  const ctx = useMemo(() => (state ? { state, isAdmin, can: gameCan, act, importRequest } : null), [state, isAdmin, gameCan, act, importRequest]);
 
   if (status === 'not-found') {
     return (
@@ -227,7 +229,7 @@ export function ScrimRoom({ scrimId }: { scrimId: string }) {
           </div>
           <div className="room-meta">
             <span className={`status ${status}`} title="Conexão em tempo real">
-              {status === 'online' ? (access?.isPublic === false ? 'Sincronizada' : 'Ao vivo') : status === 'connecting' ? 'Conectando…' : 'Reconectando…'}
+              {status === 'online' ? 'Conectado' : status === 'connecting' ? 'Conectando…' : 'Reconectando…'}
             </span>
             <span className="muted">
               👁 {presence.viewers} {presence.viewers === 1 ? 'espectador' : 'espectadores'}
@@ -247,8 +249,9 @@ export function ScrimRoom({ scrimId }: { scrimId: string }) {
           {isAdmin ? <><strong>Você está administrando esta sala.</strong> Compartilhe o link da sala com quem vai acompanhar. <a href="/guia-admin.html">Ver o guia do administrador</a></> : auth.status === 'admin' ? <><strong>Você está acompanhando esta sala como espectador.</strong> Seus controles administrativos ficam nas suas salas. <a href="/admin" onClick={event => { event.preventDefault(); navigate('/admin'); }}>Voltar para minhas salas</a></> : <><strong>Você está acompanhando como espectador.</strong> Quem vai organizar pode entrar como admin. <a href={`/admin?returnTo=${encodeURIComponent(`/s/${scrimId}`)}`} onClick={event => { event.preventDefault(); navigate(`/admin?returnTo=${encodeURIComponent(`/s/${scrimId}`)}`); }}>Entrar para organizar</a></>}
         </div>
 
-        <RoomStreams roomId={scrimId} canEdit={can('editRoom')} />
-        <RoomTools state={ctx.state} isAdmin={isAdmin} canFocus={can('manageFocus')} canDraw={can('manageDraws')} canManageTeams={can('manageTeams')} request={roomRequest} now={now} onFocusAll={focusEveryone} onBlockingChange={setToolsBlocking} />
+        <ScrimLifecycle state={ctx.state} canEdit={can('editRoom')} act={act} blocked={blocking} />
+        <EventMedia roomId={scrimId} roomTitle={ctx.state.title} phase={ctx.state.phase} canEdit={can('editRoom')} canPublish={can('publishRooms')} isPublic={access?.isPublic === true} />
+        <RoomTools state={ctx.state} isAdmin={isAdmin} canFocus={can('manageFocus')} canDraw={can('manageDraws') && ctx.state.phase !== 'paused'} canManageTeams={can('manageTeams')} request={roomRequest} now={now} onFocusAll={focusEveryone} onBlockingChange={setToolsBlocking} />
 
         <nav className="tabs" role="tablist" aria-label="Navegação da scrim">
           {TABS.map((t) => (

@@ -1,0 +1,30 @@
+import { createElement } from 'react';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { afterEach, expect, it, vi } from 'vitest';
+import { readyScrim } from '../../test/import-fixture';
+import { applyEvent } from '../../shared/scrim';
+import { ScrimLifecycle } from './ScrimLifecycle';
+let renderer: ReactTestRenderer | undefined;
+afterEach(() => { if (renderer) act(() => renderer!.unmount()); renderer = undefined; });
+it('does not expose pause controls to spectators but explains a paused room', () => {
+  const state = readyScrim().state;
+  const actCommand = vi.fn();
+  act(() => { renderer = create(createElement(ScrimLifecycle, { state, canEdit: false, act: actCommand })); });
+  expect(renderer!.root.findAllByType('button')).toHaveLength(0);
+  const paused = applyEvent(state, { type: 'scrim.pause', reason: 'Um jogador saiu.', seq: state.version + 1, at: state.updatedAt + 1 });
+  act(() => renderer!.update(createElement(ScrimLifecycle, { state: paused, canEdit: false, act: actCommand })));
+  expect(renderer!.root.findAllByProps({ 'aria-label': 'Empate técnico' })).toHaveLength(1);
+  expect(renderer!.root.findAllByType('button')).toHaveLength(0);
+});
+it('pauses with a reason and offers a separate resume action to an authorized administrator', async () => {
+  const state = readyScrim().state, send = vi.fn(async () => true);
+  act(() => { renderer = create(createElement(ScrimLifecycle, { state, canEdit: true, act: send })); });
+  act(() => renderer!.root.findByType('button').props.onClick());
+  act(() => renderer!.root.findByProps({ name: 'pause-reason' }).props.onChange({ target: { value: 'Faltou um jogador.' } }));
+  await act(async () => renderer!.root.findByType('form').props.onSubmit({ preventDefault() {} }));
+  expect(send).toHaveBeenCalledWith({ type: 'scrim.pause', reason: 'Faltou um jogador.' });
+  const paused = applyEvent(state, { type: 'scrim.pause', reason: 'Faltou um jogador.', seq: state.version + 1, at: state.updatedAt + 1 });
+  act(() => renderer!.update(createElement(ScrimLifecycle, { state: paused, canEdit: true, act: send })));
+  await act(async () => renderer!.root.findByType('button').props.onClick());
+  expect(send).toHaveBeenLastCalledWith({ type: 'scrim.resume' });
+});

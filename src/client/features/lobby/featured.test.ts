@@ -40,3 +40,16 @@ it('honors a pin only when the target is still present in the public list', () =
   expect(selectFeatured(rows, 'hidden')?.id).toBe('live11');
   expect(selectFeatured([], 'hidden')).toBeNull();
 });
+
+it('removes a technical draw from the home even when it is pinned and most recently updated', () => {
+  const paused = room('paused1', 'paused', 500);
+  expect(selectFeatured([paused, room('live11', 'live', 1)], paused.id)?.id).toBe('live11');
+  expect(selectFeatured([paused, room('finish', 'finished', 2)], paused.id)?.id).toBe('finish');
+  expect(selectFeatured([paused], paused.id)).toBeNull();
+  expect(paused.phase).toBe('paused');
+});
+
+it('makes a resumed room eligible again without changing the original selection order', () => {
+  const resumed = room('paused1', 'live', 500);
+  expect(selectFeatured([room('live11', 'live', 1), resumed], resumed.id)?.id).toBe(resumed.id);
+});

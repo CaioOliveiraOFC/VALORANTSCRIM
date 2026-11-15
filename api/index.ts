@@ -11,7 +11,7 @@ import { toMarkdown } from '../src/shared/report.js';
 import { applyEvent, initialState, DomainError, seriesScore, type Command, type ScrimEvent, type ScrimState } from '../src/shared/scrim.js';
 import type { SeriesFormat } from '../src/shared/veto.js';
 import type { RoomAccess, ScrimSummary } from '../src/shared/protocol.js';
-import { normalizeBroadcast } from '../src/shared/streams.js';
+import { normalizeBroadcast, type Broadcast } from '../src/shared/streams.js';
 import { recordingInput } from '../src/shared/recordings.js';
 import {
   activeDraw, validateFocusTarget, DRAW_REVEAL_MS, DRAW_TTL_MS, ROOM_FOCUS_TTL_MS,
@@ -152,7 +152,7 @@ function scopedSession(row: DbAccess, session: AdminSession | null) {
 }
 
 function commandPermission(type: string): AdminPermissionKey {
-  if (type === 'settings.update') return 'editRoom';
+  if (['settings.update', 'scrim.pause', 'scrim.resume'].includes(type)) return 'editRoom';
   if (['team.rename', 'team.captain', 'player.add', 'player.rename', 'player.remove', 'player.assign', 'teams.set'].includes(type)) return 'manageTeams';
   if (['veto.start', 'veto.ban', 'veto.pick', 'veto.side', 'veto.undo', 'veto.reset'].includes(type)) return 'manageVeto';
   if (type === 'stats.set') return 'correctStats';
@@ -237,7 +237,17 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     return send(res, 200, { ok: true, storage: 'supabase', realtime: 'supabase-postgres-changes' });
   }
   if (path.length === 1 && path[0] === 'streams' && req.method === 'GET') {
-    try { return send(res, 200, { broadcasts: await db('rpc/get_public_broadcasts', { method: 'POST', body: '{}' }) }); }
+    try {
+      const broadcasts = await db('rpc/get_public_broadcasts', { method: 'POST', body: '{}' }) as Broadcast[];
+      const roomIds = [...new Set(broadcasts.flatMap(item => typeof item.roomId === 'string' && ID_RE.test(item.roomId) ? [item.roomId] : []))];
+      const activeRooms = new Set<string>();
+      for (let offset = 0; offset < roomIds.length; offset += 100) {
+        const ids = roomIds.slice(offset, offset + 100).join(',');
+        const rooms = await db(`scrims?select=id,state&id=in.(${ids})&is_public=eq.true&deleted_at=is.null`) as { id: string; state: ScrimState }[];
+        for (const row of rooms) if (row.state.phase !== 'paused') activeRooms.add(row.id);
+      }
+      return send(res, 200, { broadcasts: broadcasts.filter(item => item.roomId === null || activeRooms.has(item.roomId)) });
+    }
     catch (error) {
       // A pending migration must not interrupt existing public navigation.
       if (error instanceof ApiError && error.status === 503 && error.message === STREAMS_MIGRATION) return send(res, 200, { broadcasts: [] });
@@ -273,8 +283,10 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
       const identity = { p_actor_id: session.userId, p_actor_session_version: session.sessionVersion };
       if (path.length === 2 && req.method === 'GET') {
         const offset = Number(url.searchParams.get('offset') ?? '0');
-        if (!Number.isSafeInteger(offset) || offset < 0 || offset > 100000) throw new ApiError(400, 'Página de gravações inválida.');
-        return send(res, 200, await db('rpc/list_stream_recordings', { method: 'POST', body: JSON.stringify({ ...identity, p_admin: true, p_offset: offset, p_room_id: null }) }));
+        const roomId = url.searchParams.get('roomId');
+        if (!Number.isSafeInteger(offset) || offset < 0 || offset > 100000 || roomId !== null && !ID_RE.test(roomId)) throw new ApiError(400, 'Página de gravações inválida.');
+        if (roomId !== null) requireOwnership(await roomAccess(roomId), session);
+        return send(res, 200, await db('rpc/list_stream_recordings', { method: 'POST', body: JSON.stringify({ ...identity, p_admin: true, p_offset: offset, p_room_id: roomId }) }));
       }
       assertSameOrigin(req);
       const input = await jsonBody(req);
@@ -502,6 +514,7 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
       const target = validateFocusTarget(body.target, current.state);
       toolEvent = { type: 'room.focus', focus: { id: randomUUID(), target, requestedAt: now, expiresAt: now + ROOM_FOCUS_TTL_MS } };
     } else if (body.action === 'draw.start') {
+      if (current.state.phase === 'paused') throw new ApiError(400, 'Retome a scrim antes de iniciar um sorteio.');
       requirePermission(session, 'manageDraws');
       requiredPermissions.push('manageDraws');
       if (body.kind === 'captains') {
@@ -562,6 +575,7 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     const session = await requireAdmin();
     requireOwnership(current, session);
     requirePermission(session, 'importMatches');
+    if (current.state.phase === 'paused') throw new ApiError(400, 'Retome a scrim antes de buscar ou importar uma partida.');
     const region = regionCode(body.region);
     if (!['search', 'detail', 'confirm'].includes(String(body.action))) throw new ApiError(400, 'Ação de importação inválida.');
     if (body.action === 'confirm' && activeDraw(current.state, Date.now())) throw new ApiError(409, 'Resolva o sorteio antes de importar a partida.');
@@ -598,6 +612,8 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     if (command.type === 'round.win' || command.type === 'round.undo') throw new ApiError(400, 'O placar e os rounds devem vir da importação da partida.');
     const permission = commandPermission(command.type);
     requirePermission(session, permission);
+    if (command.type === 'scrim.pause' && Object.keys(command).some(key => !['type', 'reason'].includes(key)) ||
+        command.type === 'scrim.resume' && Object.keys(command).some(key => key !== 'type')) throw new ApiError(400, 'Dados de empate técnico inválidos.');
     if (command.type === 'stats.set') {
       const mapIndex = (command as Record<string, unknown>).mapIndex;
       if (!Number.isInteger(mapIndex) || (mapIndex as number) < 0 || !current.state.maps[mapIndex as number]?.source) throw new ApiError(400, 'Só é possível corrigir estatísticas depois de importar a partida.');

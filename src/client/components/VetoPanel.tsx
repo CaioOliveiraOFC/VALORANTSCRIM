@@ -8,9 +8,9 @@ const KIND_LABEL: Record<VetoStepDef['kind'], string> = { ban: 'Ban', pick: 'Pic
 
 export function VetoPanel() {
   const { state, can, act } = useRoom();
-  const canVeto = can('manageVeto');
+  const canVeto = can('manageVeto') && state.phase !== 'paused';
 
-  if (state.phase === 'setup') {
+  if (state.phase === 'setup' || state.phase === 'paused' && state.technicalPause?.resumePhase === 'setup') {
     return <p className="card muted">O veto começa quando o admin fechar os times.</p>;
   }
 
@@ -47,7 +47,7 @@ export function VetoPanel() {
             </strong>
           </>
         ) : (
-          <strong>Veto concluído</strong>
+          <strong>{state.phase === 'paused' && state.technicalPause?.resumePhase === 'veto' ? 'Veto pausado por empate técnico' : 'Veto concluído'}</strong>
         )}
         {canVeto && (
           <span className="row push">
