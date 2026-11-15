@@ -36,7 +36,8 @@ export function EventMedia({
   isPublic,
 }: Props) {
   const { broadcasts, error: publicError } = useBroadcasts(roomId);
-  const requested = new URLSearchParams(location.search).get("media");
+  const query = new URLSearchParams(location.search);
+  const requested = query.get("media") ?? (query.get("live") === "1" ? "live" : null);
   const requestedTab: Tab | null =
     requested === "live" || requested === "recordings" ? requested : null;
   const [current, setCurrent] = useState<Broadcast | null>(null),

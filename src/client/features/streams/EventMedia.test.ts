@@ -225,3 +225,11 @@ it("plays a recording inline for viewers and offers no admin forms", async () =>
   );
   expect(renderer!.root.findAllByType("form")).toHaveLength(0);
 });
+it.each(["?media=live", "?live=1"])("opens the live player of a finished event from explicit links (%s)", async (search) => {
+  backend([config]);
+  mocks.public = [config];
+  vi.stubGlobal("location", { search, hostname: "club.example" });
+  await mount({ phase: "finished", canEdit: false });
+  expect(renderer!.root.findByProps({ id: "event-live-tab" }).props["aria-selected"]).toBe(true);
+  expect(renderer!.root.findAllByType("iframe")).toHaveLength(1);
+});
