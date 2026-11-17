@@ -1,7 +1,7 @@
 /** Account policy shared by the server and its administrative interface. */
 export const PERMISSION_KEYS = [
   'createRooms', 'editRoom', 'manageTeams', 'manageVeto', 'manageDraws', 'manageFocus',
-  'importMatches', 'correctStats', 'manageNotes', 'publishRooms', 'deleteRooms',
+  'importMatches', 'correctStats', 'manageNotes', 'publishRooms', 'deleteRooms', 'manageStreams',
 ] as const;
 
 export type AdminPermissionKey = typeof PERMISSION_KEYS[number];
@@ -22,6 +22,7 @@ export const PERMISSION_DEFINITIONS: readonly {
   { key: 'manageNotes', label: 'Adicionar anotações', description: 'Registra observações no relatório da scrim.', group: 'Resultados' },
   { key: 'publishRooms', label: 'Publicar ou ocultar salas', description: 'Define a visibilidade pública das próprias salas.', group: 'Sala' },
   { key: 'deleteRooms', label: 'Gerenciar a lixeira', description: 'Retira as próprias salas da lista e permite restaurá-las, preservando o histórico.', group: 'Sala' },
+  { key: 'manageStreams', label: 'Gerenciar lives e gravações', description: 'Adiciona links, configura as lives e cadastra ou oculta gravações das próprias salas. Consultar não exige esta permissão.', group: 'Mídia' },
 ];
 
 export function noPermissions(): AdminPermissions {
@@ -31,7 +32,7 @@ export function noPermissions(): AdminPermissions {
 export function presetPermissions(preset: AdminPreset): AdminPermissions {
   if (preset !== 'organizer' && preset !== 'full') throw new Error('Perfil de administrador inválido.');
   const permissions = Object.fromEntries(PERMISSION_KEYS.map(key => [key, true])) as AdminPermissions;
-  if (preset === 'organizer') { permissions.correctStats = false; permissions.deleteRooms = false; }
+  if (preset === 'organizer') { permissions.correctStats = false; permissions.deleteRooms = false; permissions.manageStreams = false; }
   return permissions;
 }
 

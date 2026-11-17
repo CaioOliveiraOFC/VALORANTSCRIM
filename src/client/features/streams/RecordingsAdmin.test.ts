@@ -349,3 +349,58 @@ it("does not apply an old event response after the room scope changes", async ()
   expect(text(renderer!.root)).toContain("Evento atual");
   expect(text(renderer!.root)).not.toContain("Privada antiga");
 });
+it("keeps private replay playback and pagination available in read-only mode", async () => {
+  const first = { ...recording("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", roomA.id, "Replay privado"), isPublic: false };
+  const second = recording("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", roomA.id, "Segunda parte");
+  const onPlay = vi.fn();
+  const writes: string[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (url, options) => {
+    if (options?.method) writes.push(options.method);
+    const more = String(url).includes("offset=24");
+    return response({ recordings: more ? [second] : [first], total: 25, nextOffset: more ? null : 24 });
+  }));
+  await act(async () => {
+    renderer = create(createElement(RecordingsAdmin, {
+      rooms: [roomA], superAdmin: false, canPublish: false, canEdit: false,
+      target: null, roomId: roomA.id, compact: true, onPlay,
+    }));
+  });
+  await flush();
+  expect(text(renderer!.root)).toContain("Replay privado");
+  expect(text(renderer!.root)).toContain("Oculta");
+  expect(renderer!.root.findAllByType("form")).toHaveLength(0);
+  const buttons = () => renderer!.root.findAllByType("button");
+  expect(buttons().some(node => text(node).startsWith("Adicionar") || text(node).includes("Exibir replay"))).toBe(false);
+  act(() => buttons().find(node => text(node) === "Assistir gravação")!.props.onClick());
+  expect(onPlay).toHaveBeenCalledWith(first);
+  act(() => buttons().find(node => text(node) === "Ver mais gravações")!.props.onClick());
+  await flush();
+  expect(text(renderer!.root)).toContain("Segunda parte");
+  expect(writes).toHaveLength(0);
+});
+it("closes replay editing and blocks stale add, save and visibility callbacks after revocation", async () => {
+  const first = recording("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", roomA.id, "Minha gravação");
+  const writes: string[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (_url, options) => {
+    if (options?.method) writes.push(options.method);
+    return response({ recordings: [first], total: 1, nextOffset: null });
+  }));
+  const common = { rooms: [roomA], superAdmin: false, canPublish: true, target: null, roomId: roomA.id, compact: true };
+  await act(async () => { renderer = create(createElement(RecordingsAdmin, { ...common, canEdit: true })); });
+  await flush();
+  const staleBegin = renderer!.root.findAllByType("button").find(node => text(node) === "Adicionar gravação")!.props.onClick;
+  act(() => staleBegin());
+  const staleSave = renderer!.root.findByType("form").props.onSubmit;
+  const staleToggle = renderer!.root.findByProps({ "aria-label": "Ocultar replay Minha gravação" }).props.onClick;
+  act(() => renderer!.update(createElement(RecordingsAdmin, { ...common, canEdit: false })));
+  act(() => {
+    staleBegin();
+    staleSave({ preventDefault() {} });
+    staleToggle();
+  });
+  await flush();
+  expect(text(renderer!.root)).toContain("Minha gravação");
+  expect(renderer!.root.findAllByType("form")).toHaveLength(0);
+  expect(renderer!.root.findAllByProps({ "aria-label": "Ocultar replay Minha gravação" })).toHaveLength(0);
+  expect(writes).toHaveLength(0);
+});

@@ -97,7 +97,7 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
-function backend(initial: Broadcast[] = []) {
+function backend(initial: Broadcast[] = [], replayRecord = record) {
   const state = { records: initial, writes: [] as any[], conflict: false };
   vi.stubGlobal(
     "fetch",
@@ -114,8 +114,8 @@ function backend(initial: Broadcast[] = []) {
       if (String(url).startsWith("/api/admin/streams"))
         return response({ broadcasts: state.records });
       if (String(url).includes(`/api/streams/recordings/${record.id}`))
-        return response(record);
-      return response({ recordings: [record], total: 1, nextOffset: null });
+        return response(replayRecord);
+      return response({ recordings: [replayRecord], total: 1, nextOffset: null });
     }),
   );
   return state;
@@ -232,4 +232,42 @@ it.each(["?media=live", "?live=1"])("opens the live player of a finished event f
   await mount({ phase: "finished", canEdit: false });
   expect(renderer!.root.findByProps({ id: "event-live-tab" }).props["aria-selected"]).toBe(true);
   expect(renderer!.root.findAllByType("iframe")).toHaveLength(1);
+});
+it("lets an owner consult hidden live links and private recordings without editing", async () => {
+  const state = backend([{ ...config, enabled: false }], { ...record, isPublic: false });
+  await mount({ canView: true, canEdit: false });
+  expect(text(renderer!.root)).toContain("Acesso de consulta.");
+  expect(text(renderer!.root)).toContain("Live oculta · links salvos");
+  expect(renderer!.root.findAllByType("a").some(node => node.props.href === "https://www.twitch.tv/masterpfi")).toBe(true);
+  expect(button("Editar links da live")).toBeUndefined();
+  expect(button("Exibir live")).toBeUndefined();
+  act(() => renderer!.root.findByProps({ id: "event-recordings-tab" }).props.onClick());
+  expect(text(renderer!.root)).toContain("Replay deste evento");
+  expect(text(renderer!.root)).toContain("Oculta");
+  act(() => renderer!.root.findAllByType("button").find(node => text(node).includes(record.title))!.props.onClick());
+  await flush();
+  expect(renderer!.root.findAllByType("iframe")).toHaveLength(1);
+  expect(renderer!.root.findAllByType("form")).toHaveLength(0);
+  expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).startsWith("/api/admin/streams"))).toBe(true);
+  expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).startsWith("/api/admin/stream-recordings?"))).toBe(true);
+  expect(state.writes).toHaveLength(0);
+});
+it("closes live edits on permission revocation while retaining owner consultation", async () => {
+  const state = backend([config]);
+  await mount({ canView: true });
+  act(() => button("Editar links da live").props.onClick());
+  const staleSubmit = renderer!.root.findByType("form").props.onSubmit;
+  const staleToggle = button("Ocultar live").props.onClick;
+  const staleBegin = button("Editar links da live").props.onClick;
+  act(() => renderer!.update(createElement(EventMedia, { ...props, canView: true, canEdit: false })));
+  act(() => {
+    staleBegin();
+    staleToggle();
+    staleSubmit({ preventDefault() {} });
+  });
+  await flush();
+  expect(text(renderer!.root)).toContain("Acesso de consulta.");
+  expect(text(renderer!.root)).toContain("Exibindo live neste evento");
+  expect(renderer!.root.findAllByType("form")).toHaveLength(0);
+  expect(state.writes).toHaveLength(0);
 });

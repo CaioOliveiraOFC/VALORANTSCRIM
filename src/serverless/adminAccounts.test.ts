@@ -284,6 +284,9 @@ describe('password completion receipts with the canonical SQL policy', () => {
     }
     await sql.query(`insert into auth.users(id,email,email_confirmed_at) values($1,$2,clock_timestamp())`, [OWNER, actor.email]);
     await sql.exec(await readFile(new URL('../../supabase/migrations/20261105_super_admin.sql', import.meta.url), 'utf8'));
+    for (const file of ['20261112_home_feature.sql', '20261113_streams.sql', '20261114_multiplatform_streams.sql', '20261116_media_permissions.sql']) {
+      await sql.exec(await readFile(new URL(`../../supabase/migrations/${file}`, import.meta.url), 'utf8'));
+    }
   }, 30_000);
   afterAll(async () => { await sql.close(); });
 

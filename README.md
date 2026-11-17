@@ -11,13 +11,19 @@ A aplicação em uso combina React, Vercel Functions, Supabase Postgres/Realtime
 - **Partidas pela API:** [importação de customizadas](docs/MATCH-IMPORT.md).
 - **Foco e sorteios compartilhados:** [ROOM-TOOLS.md](docs/ROOM-TOOLS.md).
 - **Empate técnico retomável e player por evento:** [EVENT-PAUSE-MEDIA.md](docs/EVENT-PAUSE-MEDIA.md).
-- **Transmissões Twitch, YouTube e Kick e acervo de replays:** [STREAMS.md](docs/STREAMS.md), configuradas em `/admin/lives`, com gravações em `/gravacoes`.
+- **Lives e gravações:** [STREAMS.md](docs/STREAMS.md). Configure os links na própria sala; `/admin/lives` reúne os eventos e `/gravacoes` é o acervo público.
 - **Identidade Brasa, home VCT e fixação de destaque:** [BRASA-VCT.md](docs/BRASA-VCT.md).
-- **X1 em preparação:** [prévia interativa](docs/BRASA-PREVIEW.md), com dados locais de demonstração.
+- **Conceito X1 preservado:** [referência técnica](docs/BRASA-PREVIEW.md), sem acesso ou divulgação nas páginas públicas.
 
-O organizador atua somente nas próprias salas e nas ações que o Caio liberou. Perfis Organizador e Completo servem como ponto de partida para onze permissões ajustáveis. Só o Caio administra contas e transfere a propriedade das salas; as anteriores à migração ficam inicialmente com ele.
+O organizador atua somente nas próprias salas e nas ações que o Caio liberou. Perfis Organizador e Completo servem como ponto de partida para permissões ajustáveis. Só o Caio administra contas e transfere a propriedade das salas; as anteriores à migração ficam inicialmente com ele.
+
+Toda conta administrativa ativa pode consultar lives e gravações das próprias salas. A consulta não libera alterações: adicionar links, publicar ou ocultar uma live e cadastrar gravações dependem de **Gerenciar lives e gravações** (`manageStreams`), separada de **Editar a sala**. A capacidade começa desligada para os outros admins existentes e no perfil Organizador; o Caio pode liberá-la por conta. A live independente da página inicial continua exclusiva do super admin. A publicação é manual; ligar ou encerrar a transmissão na plataforma não altera automaticamente sua exibição no site.
 
 Novas salas começam ocultas. A publicação pelo olho, a importação, a correção de K/D/A e a lixeira dependem das capacidades da conta. Placar e rounds vêm da API e o histórico é preservado. Instale `20261105_super_admin.sql` após as três migrações anteriores: a política privada no banco passa a ser a autoridade de acesso. Flags antigas de `app_metadata`, `user_metadata` e links com `#admin=…` não concedem edição na versão nova.
+
+Uma scrim interrompida pode receber **empate técnico**: sai dos destaques ativos, permanece no histórico e pode ser retomada com os mesmos times, mapas e placar. A relação completa das migrações para uma instalação nova está em [README-VERCEL.md](README-VERCEL.md).
+
+**Atualização de permissões de mídia:** em um projeto em uso, coordene a publicação da aplicação compatível e, logo depois, a execução de `20261116_media_permissions.sql`. A versão antiga não aceita a nova chave de permissão. Siga a [ordem de atualização e recuperação](README-VERCEL.md#atualizar-permissões-de-mídia-em-um-projeto-em-uso); depois, conceda a edição aos organizadores desejados em **Administração → Administradores**, sem scripts por conta.
 
 ## Servidor Node legado (referência)
 

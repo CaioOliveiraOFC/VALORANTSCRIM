@@ -264,17 +264,6 @@ export function Landing() {
           </ul>
         </section>
       )}
-      <aside className="club-x1-note">
-        <Icon name="cup" size={23} />
-        <div>
-          <h2>Uma resenha, outros desafios.</h2>
-          <p>O X1 também vai ter seu lugar na Brasa.</p>
-        </div>
-        <a href="/x1" onClick={internal}>
-          Conhecer o X1
-          <Icon name="arrow" size={16} />
-        </a>
-      </aside>
     </main>
   );
 }

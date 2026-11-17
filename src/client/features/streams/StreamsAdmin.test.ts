@@ -152,22 +152,62 @@ it("does not publish unfinished home edits when hiding a saved live", async () =
     channels: home.channels,
   });
 });
-it("does not offer home controls to ordinary organizers and removes the overview when edit permission is revoked", async () => {
+it("keeps the event directory readable when an organizer loses edit permission", async () => {
   mocks.auth.isSuperAdmin = false;
-  backend();
+  const state = backend();
   await mount();
   expect(text(renderer!.root)).not.toContain("Divulgar uma live sem evento");
   expect(renderer!.root.findAllByType("form")).toHaveLength(0);
   mocks.auth.can = () => false;
   act(() => renderer!.update(createElement(StreamsAdmin)));
   expect(text(renderer!.root)).toContain(
-    "Seu acesso não permite configurar lives.",
+    "Acesso de consulta.",
   );
   expect(
     renderer!.root
       .findAllByType("a")
       .some((node) => node.props.href.includes("/s/publicroom")),
-  ).toBe(false);
+  ).toBe(true);
+  expect(state.writes).toHaveLength(0);
+});
+it("opens the event directory for an administrator with no editing permissions", async () => {
+  mocks.auth.isSuperAdmin = false;
+  mocks.auth.can = () => false;
+  const state = backend([{ ...home, roomId: room.id, enabled: false }]);
+  await mount();
+  expect(text(renderer!.root)).toContain("Acesso de consulta.");
+  expect(text(renderer!.root)).toContain("Live oculta · links salvos");
+  expect(renderer!.root.findAllByType("a").some(node => node.props.href === "/s/publicroom?media=live#event-media")).toBe(true);
+  expect(renderer!.root.findAllByType("form")).toHaveLength(0);
+  expect(state.writes).toHaveLength(0);
+});
+it("does not treat room editing as permission to manage media", async () => {
+  mocks.auth.isSuperAdmin = false;
+  mocks.auth.can = key => key === "editRoom";
+  const state = backend();
+  await mount();
+  expect(text(renderer!.root)).toContain("Acesso de consulta.");
+  expect(text(renderer!.root)).toContain("Gerenciar lives e gravações");
+  expect(state.writes).toHaveLength(0);
+});
+it("closes an editor and ignores its old handlers after media editing is revoked", async () => {
+  const state = backend([home]);
+  await mount();
+  act(() => button("Editar links da página inicial").props.onClick());
+  const staleSubmit = renderer!.root.findByType("form").props.onSubmit;
+  const staleToggle = button("Ocultar da página inicial").props.onClick;
+  const staleBegin = button("Editar links da página inicial").props.onClick;
+  mocks.auth.can = () => false;
+  act(() => renderer!.update(createElement(StreamsAdmin)));
+  act(() => {
+    staleBegin();
+    staleToggle();
+    staleSubmit({ preventDefault() {} });
+  });
+  await flush();
+  expect(text(renderer!.root)).toContain("Exibindo na página inicial");
+  expect(renderer!.root.findAllByType("form")).toHaveLength(0);
+  expect(state.writes).toHaveLength(0);
 });
 it("keeps the confirmed home status when a direct hide request fails", async () => {
   const state = backend([home]);

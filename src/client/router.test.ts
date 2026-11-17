@@ -16,8 +16,14 @@ it('recognizes the VCT-first public navigation and preserves shared room links',
   expect(parseRoute('/')).toEqual({name:'home'});
   expect(parseRoute('/vct')).toEqual({name:'vct'});
   expect(parseRoute('/historico')).toEqual({name:'history'});
-  expect(parseRoute('/x1')).toEqual({name:'x1'});
   expect(parseRoute('/s/abc123')).toEqual({name:'scrim',id:'abc123'});
-  for (const path of ['/vct','/historico','/x1']) expect(safeAdminReturnTo(path)).toBe(path);
+  for (const path of ['/vct','/historico']) expect(safeAdminReturnTo(path)).toBe(path);
   for (const path of ['/vct?next=https://example.com','//vct','/x1#admin=secret']) expect(safeAdminReturnTo(path)).toBe('/admin');
+});
+
+it('returns retired concept URLs to the public home and excludes them from login returns', () => {
+  for (const path of ['/x1', '/x1/', '/preview/brasa', '/preview/brasa/']) {
+    expect(parseRoute(path)).toEqual({ name: 'home' });
+    expect(safeAdminReturnTo(path)).toBe('/admin');
+  }
 });

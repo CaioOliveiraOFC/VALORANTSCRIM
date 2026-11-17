@@ -21,6 +21,7 @@ interface Props {
   roomTitle: string;
   phase: string;
   canEdit: boolean;
+  canView?: boolean;
   canPublish: boolean;
   isPublic: boolean;
 }
@@ -32,6 +33,7 @@ export function EventMedia({
   roomTitle,
   phase,
   canEdit,
+  canView = canEdit,
   canPublish,
   isPublic,
 }: Props) {
@@ -67,6 +69,8 @@ export function EventMedia({
   const [draftVersion, setDraftVersion] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
   const widgetRef = useRef<HTMLElement>(null);
+  const editRef = useRef(canEdit);
+  editRef.current = canEdit;
 
   useEffect(() => {
     if (location.hash !== "#event-media") return;
@@ -96,7 +100,7 @@ export function EventMedia({
     }
   }, [requestedTab]);
   useEffect(() => {
-    if (!canEdit) {
+    if (!canView) {
       setCurrent(null);
       setConfigLoaded(false);
       setEditing(false);
@@ -143,7 +147,10 @@ export function EventMedia({
       removeEventListener("focus", visible);
       document.removeEventListener("visibilitychange", visible);
     };
-  }, [roomId, canEdit]);
+  }, [roomId, canView]);
+  useEffect(() => {
+    if (!canEdit) setEditing(false);
+  }, [canEdit]);
   useEffect(() => {
     let disposed = false,
       running = false;
@@ -154,7 +161,7 @@ export function EventMedia({
         return;
       running = true;
       try {
-        const next = await listRecordings(canEdit, 0, roomId);
+        const next = await listRecordings(canView, 0, roomId);
         if (!disposed && !paginated.current) {
           setPage({
             ...next,
@@ -179,7 +186,7 @@ export function EventMedia({
       clearInterval(timer);
       document.removeEventListener("visibilitychange", visible);
     };
-  }, [roomId, revision, canEdit]);
+  }, [roomId, revision, canView]);
   useEffect(() => {
     if (!selectedId) return;
     let disposed = false,
@@ -219,13 +226,14 @@ export function EventMedia({
   }, [editing]);
 
   const live =
-    canEdit && configLoaded
+    canView && configLoaded
       ? current?.enabled
         ? current
         : null
       : (broadcasts[0] ?? null);
   const canPromote = canPublish && isPublic;
   function begin() {
+    if (!editRef.current) return;
     const config = current ?? live;
     setDraftVersion(config?.version ?? 0);
     setLinks(
@@ -245,7 +253,7 @@ export function EventMedia({
     config: Pick<Broadcast, "title" | "channels" | "enabled" | "promoteHome">,
     expectedVersion = current?.version ?? 0,
   ) {
-    if (locked.current || !configLoaded) return;
+    if (locked.current || !editRef.current || !configLoaded) return;
     locked.current = true;
     setBusy(true);
     setError("");
@@ -317,7 +325,7 @@ export function EventMedia({
     if (!page || page.nextOffset === null || busy) return;
     setBusy(true);
     try {
-      const next = await listRecordings(false, page.nextOffset, roomId);
+      const next = await listRecordings(canView, page.nextOffset, roomId);
       paginated.current = true;
       setPage({
         ...next,
@@ -415,6 +423,13 @@ export function EventMedia({
           {notice}
         </p>
       )}
+      {canView && !canEdit && (
+        <p className="event-media-description" role="status">
+          Acesso de consulta. Você pode acompanhar os links e as gravações deste
+          evento. Para alterar, peça ao super admin a permissão “Gerenciar lives
+          e gravações”.
+        </p>
+      )}
       {tab === "live" ? (
         <div
           id="event-live-panel"
@@ -432,7 +447,9 @@ export function EventMedia({
               <p className="muted">
                 {canEdit
                   ? "Cole os links de quem vai transmitir. O player aparece aqui para todo mundo."
-                  : "Quando a organização publicar uma live, você poderá assistir por aqui."}
+                  : canView
+                    ? "Confira os links salvos e as gravações deste evento."
+                    : "Quando a organização publicar uma live, você poderá assistir por aqui."}
               </p>
             )}
             {canEdit && (
@@ -462,7 +479,22 @@ export function EventMedia({
                 ) : null}
               </div>
             )}
-            {!canEdit && publicError && (
+            {canView && !canEdit && current?.channels.length ? (
+              <ul className="event-media-readonly-links">
+                {current.channels.map((item) => (
+                  <li key={streamUrl(item)}>
+                    <a
+                      href={streamUrl(item)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {item.label} · {PLATFORM_NAMES[streamPlatform(item)]}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {!canView && publicError && (
               <p role="status" className="muted small">
                 {publicError}
               </p>
@@ -607,6 +639,7 @@ export function EventMedia({
               rooms={[{ id: roomId, title: roomTitle, access: { isPublic } }]}
               superAdmin={false}
               canPublish={canPublish}
+              canEdit={canEdit}
               target={null}
               onChange={() => setRevision((value) => value + 1)}
               onPlay={play}
@@ -629,6 +662,7 @@ export function EventMedia({
                           <strong>{item.title}</strong>
                           <small>
                             {PLATFORM_NAMES[streamPlatform(item.source)]}
+                            {canView && (item.isPublic ? " · Publicada" : " · Oculta")}
                           </small>
                         </span>
                         <span>Assistir</span>

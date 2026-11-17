@@ -180,7 +180,7 @@ function AdminDashboard({ returnTo }: { returnTo: string }) {
   const visible = rooms?.filter(room => `${room.title} ${room.teams.join(' ')}`.toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR')));
   return <main className="page admin-portal">
     <header className="admin-dashboard-heading"><div><span className="admin-mode-label">Administrador</span><h1>Área do administrador</h1><p className="muted">{auth.isSuperAdmin ? 'Crie a próxima scrim ou administre as salas da comunidade.' : 'Crie a próxima scrim ou continue uma das suas salas.'}</p></div><a href="/guia-admin.html" className="button">Guia do administrador</a></header>
-    {auth.can('editRoom') && <aside className="stream-admin-shortcut"><div><strong>Lives e gravações ficam no evento.</strong><p>Abra sua scrim para colar os links e guardar os replays.</p></div><a className="button" href="/admin/lives" onClick={internal}>Ver mídia dos eventos</a></aside>}
+    <aside className="stream-admin-shortcut"><div><strong>Lives e gravações ficam no evento.</strong><p>Consulte a mídia das suas salas. As alterações dependem das permissões liberadas para sua conta.</p></div><a className="button" href="/admin/lives" onClick={internal}>Ver mídia dos eventos</a></aside>
     {returnTo !== '/admin' && <p className="admin-return"><a href={returnTo} onClick={internal}>Voltar para a sala que você estava acompanhando</a></p>}
     <div className={`admin-dashboard-grid${canCreateRooms ? '' : ' is-list-only'}`}>
       {canCreateRooms && <form className="card admin-create-form" onSubmit={create}>

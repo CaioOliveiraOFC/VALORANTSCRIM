@@ -8,18 +8,14 @@ export type Route =
   | { name: 'streams' }
   | { name: 'recordings' }
   | { name: 'scrim'; id: string }
-  | { name: 'brasa-preview' }
   | { name: 'vct' }
-  | { name: 'history' }
-  | { name: 'x1' };
+  | { name: 'history' };
 
 export function parseRoute(pathname: string): Route {
   if (/^\/gravacoes\/?$/.test(pathname)) return { name: 'recordings' };
   if (/^\/admin\/lives\/?$/.test(pathname)) return { name: 'streams' };
   if (/^\/vct\/?$/.test(pathname)) return { name: 'vct' };
   if (/^\/historico\/?$/.test(pathname)) return { name: 'history' };
-  if (/^\/x1\/?$/.test(pathname)) return { name: 'x1' };
-  if (/^\/preview\/brasa\/?$/.test(pathname)) return { name: 'brasa-preview' };
   if (/^\/admin\/management\/?$/.test(pathname)) return { name: 'management' };
   if (/^\/admin\/?$/.test(pathname)) return { name: 'admin' };
   const m = /^\/s\/([a-z0-9]{6,32})\/?$/.exec(pathname);
@@ -49,7 +45,7 @@ export function useRoute(): Route {
 /** Only destinations implemented by this app can receive a post-login return. */
 export function safeAdminReturnTo(value: string | null): string {
   if (value === '/admin/lives') return value;
-  if (value && ['/', '/vct', '/historico', '/x1', '/gravacoes'].includes(value)) return value;
+  if (value && ['/', '/vct', '/historico', '/gravacoes'].includes(value)) return value;
   if (value === '/admin/management') return value;
   if (value && value === value.trim() && /^\/s\/[a-z0-9]{6,32}\/?$/.test(value)) return value;
   return '/admin';

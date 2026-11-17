@@ -70,13 +70,15 @@ it('protects the owner row and saves adjusted presets with the displayed account
   vi.stubGlobal('fetch', fetcher); await mount();
   expect(row('Caio').findAllByType('button')).toHaveLength(0);
   act(() => button('Editar permissões', row('Organizador 1')).props.onClick());
+  expect(named('permission-manageStreams').props.checked).toBe(false);
   act(() => root().findByProps({ 'aria-label': 'Modelo de acesso' }).props.onChange({ target: { value: 'full' } }));
   expect(named('permission-deleteRooms').props.checked).toBe(true);
+  expect(named('permission-manageStreams').props.checked).toBe(true);
   act(() => named('permission-publishRooms').props.onChange({ target: { checked: false } }));
   await act(async () => { await form().props.onSubmit({ preventDefault() {} }); }); await flush();
   const write = fetcher.mock.calls.find(([, init]) => init?.method === 'PATCH')!;
   expect(write[0]).toBe('/api/admin/accounts/' + ADMIN_ID);
-  expect(JSON.parse(write[1]!.body as string)).toMatchObject({ expectedVersion: 1, preset: 'full', permissions: { deleteRooms: true, publishRooms: false } });
+  expect(JSON.parse(write[1]!.body as string)).toMatchObject({ expectedVersion: 1, preset: 'full', permissions: { deleteRooms: true, publishRooms: false, manageStreams: true } });
 });
 
 it('drops a stale permissions form on conflict and fetches the current version', async () => {

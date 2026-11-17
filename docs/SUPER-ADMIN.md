@@ -17,6 +17,8 @@ A migração é aditiva: preserva salas, eventos, importações e publicação; 
 
 As tabelas privadas `scrim_admin_settings`, `scrim_admin_accounts` e `scrim_admin_audit` passam a ser a autoridade de acesso. Supabase Auth continua responsável pela identidade e senha. Os campos antigos de `app_metadata` são usados apenas na importação inicial; alterações posteriores neles ou em `user_metadata` não concedem acesso. Os scripts [admin-access.sql](admin-access.sql) e [room-delete-access.sql](room-delete-access.sql) são **LEGACY**, somente para a versão anterior.
 
+A instalação completa do site também inclui as migrações de destaque, lives e gravações. Consulte a [sequência de instalação](../README-VERCEL.md#ordem-das-migrações) e execute apenas o que estiver pendente no projeto.
+
 ## Criar um administrador
 
 1. Entre como Caio e abra **Administração → Administradores**.
@@ -32,15 +34,16 @@ Se a criação for interrompida depois que a identidade já foi criada no Auth, 
 
 | Perfil inicial | O que libera nas próprias salas |
 |---|---|
-| Organizador | Operações normais de preparação e condução; correção de K/D/A e lixeira começam desligadas. |
-| Completo | As onze ações, incluindo correção de K/D/A e lixeira. |
+| Organizador | Operações normais de preparação e condução; correção de K/D/A, lixeira e edição de mídia começam desligadas. |
+| Completo | As doze ações nas próprias salas, incluindo correção de K/D/A, lixeira e edição de mídia. |
 
-Os perfis são pontos de partida. Os onze controles podem ser ajustados individualmente:
+Os perfis são pontos de partida. Os doze controles podem ser ajustados individualmente:
 
 | Controle na interface | Permissão |
 |---|---|
 | Criar salas | `createRooms` |
 | Editar a sala | `editRoom` |
+| Gerenciar lives e gravações | `manageStreams` |
 | Montar os times | `manageTeams` |
 | Escolher os mapas | `manageVeto` |
 | Controlar sorteios | `manageDraws` |
@@ -52,6 +55,29 @@ Os perfis são pontos de partida. Os onze controles podem ser ajustados individu
 | Gerenciar a lixeira | `deleteRooms` |
 
 Nenhum desses controles libera a administração de contas ou o acesso global às salas. Um administrador comum atua **somente nas salas que possui** e nas ações liberadas. Uma sala pública de outra pessoa é vista como espectador; uma sala oculta de outra pessoa permanece inacessível. Mesmo o perfil Completo não transforma a conta em super admin.
+
+### Consultar mídia e autorizar alterações
+
+Uma conta administrativa ativa pode abrir **Lives e gravações** e consultar a mídia das próprias salas sem receber edição. O Caio continua vendo todas as salas. A leitura inclui configurações salvas e gravações autorizadas daquele evento; não amplia o acesso a salas de outros organizadores.
+
+Para permitir alterações, libere **Gerenciar lives e gravações** (`manageStreams`) na conta. **Editar a sala** permanece uma capacidade separada e não libera essas alterações. Sem `manageStreams`, os controles de salvar links, exibir/ocultar a live e cadastrar gravações não ficam disponíveis, e a API recusa essas operações. Retirar a permissão bloqueia novas alterações sem ocultar as lives, apagar replays ou remover o acesso de consulta.
+
+Essa separação exige a publicação coordenada da aplicação compatível e, logo
+depois, `20261116_media_permissions.sql`, após as migrações anteriores de
+streams. A versão antiga não aceita a política com doze chaves; aplicar esse SQL
+antes do deploy compatível interrompe login e acesso de todos os admins. Até
+o SQL, a aplicação nova mantém login com a política anterior, mas a mídia
+administrativa retorna 503 e operações de contas que enviam doze capacidades
+ficam indisponíveis. Siga a [ordem e recuperação do ambiente](../README-VERCEL.md#atualizar-permissões-de-mídia-em-um-projeto-em-uso).
+
+A migração inicia `manageStreams` como falso
+para todos os admins existentes que não são super admin, sem apagar mídia.
+Isso também vale para contas que tinham o perfil Completo: nenhum acesso é
+ampliado automaticamente. O Caio pode marcar a capacidade individual ou escolher
+explicitamente o perfil Completo atualizado, que a inclui. Novas contas no
+perfil Organizador começam sem edição de mídia.
+
+A publicação de gravações e o destaque de um evento na home também dependem de **Publicar ou ocultar salas** e de uma sala publicada. A configuração **Divulgar uma live sem evento**, na página inicial, permanece exclusiva do Caio; conceder edição de mídia a um organizador não libera essa ação. O [guia de mídia](STREAMS.md) descreve o uso diário.
 
 ## Transferir uma sala
 
@@ -77,7 +103,7 @@ Não confunda proprietário da sala com proprietário do site: admins comuns pod
 
 ## Conferência no Preview e publicação
 
-O trabalho deve ser revisado no PR/Preview da branch `feat/super-admin-console`, sem merge automático. A instalação da migração no Supabase é um requisito de ambiente; a validação da interface não a substitui.
+Para uma atualização, confira o PR, os testes e o ambiente de destino. As migrações pendentes no Supabase são um requisito de ambiente; a validação da interface não as substitui. A atualização de mídia publica primeiro a aplicação compatível e executa o SQL logo depois, com janela e responsável definidos. Até essa coordenação estar pronta, mantenha a atualização sem publicar. A proteção de login de um Preview da Vercel é separada do acesso administrativo da aplicação.
 
 Neste projeto, Preview e Production compartilham o Supabase. APIs antigas podem ignorar as novas capacidades e a propriedade das salas, especialmente quando ainda consultam com `service_role`. Use apenas contas e salas fictícias no Preview. Só confie no isolamento depois de atualizar os domínios ativos e aposentar ou bloquear deployments/Previews antigos que mantenham esse acesso de serviço.
 
@@ -85,7 +111,9 @@ Após instalar a migração, confira com Caio e dois organizadores de teste:
 
 - Apenas Caio abre `/admin/management` e administra contas; a própria conta permanece protegida.
 - Organizador cria uma sala própria e não edita a sala do outro. A sala pública do outro abre como espectador; a oculta não abre.
-- Organizador não corrige K/D/A nem usa a lixeira por padrão; Completo permite essas ações apenas nas próprias salas. Alterar um controle muda somente a capacidade correspondente.
+- Organizador começa sem correção de K/D/A, lixeira e edição de mídia; escolher Completo libera essas ações apenas nas próprias salas. Alterar um controle muda somente a capacidade correspondente.
+- Um organizador sem edição de mídia abre **Lives e gravações** e consulta somente suas salas, incluindo links ocultos e gravações privadas autorizadas, sem formular alterações. A API também recusa gravações/modificações diretas sem a permissão.
+- Conceder edição de mídia libera os controles correspondentes nas próprias salas; revogar bloqueia novas alterações e mantém o conteúdo salvo. A live independente na home continua exclusiva do Caio.
 - Transferir uma sala muda quem pode editá-la sem mudar dados ou publicação.
 - Suspender nega edições e login sem apagar ou ocultar as salas; reativar exige nova sessão e preserva permissões.
 - Redefinir senha exige novo login e não aceita a sessão antiga; o registro privado não contém a senha.
@@ -101,4 +129,5 @@ Em Administração → Todas as salas, abra **VCT em destaque na home → Config
 Escolha uma sala publicada ou **Automático**. Apenas o Caio possui essa ação.
 É necessária a instalação única de `20261112_home_feature.sql`.
 Uma sala que se torne oculta ou excluída deixa de ser exposta; a home escolhe outra
-automaticamente. Veja [BRASA-VCT.md](BRASA-VCT.md).
+automaticamente. O mesmo acontece durante um empate técnico, mesmo que a sala
+continue publicada; ela permanece acessível no histórico. Veja [BRASA-VCT.md](BRASA-VCT.md).

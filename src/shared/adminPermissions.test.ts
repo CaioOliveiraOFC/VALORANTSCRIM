@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { PERMISSION_DEFINITIONS, PERMISSION_KEYS, noPermissions, parsePermissions, presetPermissions } from './adminPermissions.js';
 
 describe('canonical administrative capabilities', () => {
-  it('defines exactly the eleven known capabilities with user-facing labels', () => {
-    expect(PERMISSION_KEYS).toHaveLength(11);
+  it('defines exactly the twelve known capabilities with user-facing labels', () => {
+    expect(PERMISSION_KEYS).toHaveLength(12);
     expect(PERMISSION_DEFINITIONS.map(item => item.key)).toEqual(PERMISSION_KEYS);
     expect(PERMISSION_DEFINITIONS.every(item => item.label && item.description)).toBe(true);
     expect(PERMISSION_KEYS).not.toContain('accessAll');
@@ -11,7 +11,7 @@ describe('canonical administrative capabilities', () => {
 
   it('returns fresh maps and keeps organizer corrections and trash explicitly denied', () => {
     const organizer = presetPermissions('organizer');
-    expect(Object.entries(organizer).filter(([, allowed]) => !allowed).map(([key]) => key)).toEqual(['correctStats', 'deleteRooms']);
+    expect(Object.entries(organizer).filter(([, allowed]) => !allowed).map(([key]) => key)).toEqual(['correctStats', 'deleteRooms', 'manageStreams']);
     expect(Object.values(presetPermissions('full')).every(Boolean)).toBe(true);
     expect(Object.values(noPermissions()).every(value => value === false)).toBe(true);
     organizer.manageTeams = false;
@@ -23,6 +23,8 @@ describe('canonical administrative capabilities', () => {
   it('accepts only explicit booleans and defaults missing known keys to false', () => {
     expect(parsePermissions({ manageTeams: true, deleteRooms: false })).toEqual({ ...noPermissions(), manageTeams: true });
     expect(parsePermissions({})).toEqual(noPermissions());
+    expect(parsePermissions({ editRoom: true }).manageStreams).toBe(false);
+    expect(parsePermissions({ manageStreams: true }).editRoom).toBe(false);
     for (const value of [null, undefined, [], true, 'full', { accessAll: true }, { isSuperAdmin: true },
       { manageAccounts: true }, { deleteRooms: 'true' }, { createRooms: 1 }, { importMatches: null }]) {
       expect(() => parsePermissions(value)).toThrow();
