@@ -27,6 +27,7 @@ export function RecordingsAdmin({
   rooms,
   superAdmin,
   canPublish,
+  canEdit = true,
   target,
   roomId,
   compact = false,
@@ -36,6 +37,7 @@ export function RecordingsAdmin({
   rooms: RecordingRoom[];
   superAdmin: boolean;
   canPublish: boolean;
+  canEdit?: boolean;
   target: RecordingTarget | null;
   roomId?: string;
   compact?: boolean;
@@ -57,6 +59,8 @@ export function RecordingsAdmin({
     formRef = useRef<HTMLFormElement>(null);
   const scopeRef = useRef(roomId);
   scopeRef.current = roomId;
+  const editRef = useRef(canEdit);
+  editRef.current = canEdit;
   const inScope = (item: StreamRecording) => !roomId || item.roomId === roomId;
   const scopePage = (value: RecordingsPage): RecordingsPage => ({
     ...value,
@@ -86,7 +90,11 @@ export function RecordingsAdmin({
       disposed = true;
     };
   }, [retry, roomId]);
+  useEffect(() => {
+    if (!canEdit) setFormOpen(false);
+  }, [canEdit]);
   function begin(value?: RecordingTarget) {
+    if (!editRef.current) return;
     const scopedTarget =
       !roomId || value?.roomId === roomId ? value : undefined;
     const destinationRoomId =
@@ -122,8 +130,8 @@ export function RecordingsAdmin({
     setFormOpen(true);
   }
   useEffect(() => {
-    if (target) begin(target);
-  }, [target, roomId]);
+    if (target && canEdit) begin(target);
+  }, [target, roomId, canEdit]);
   useEffect(() => {
     if (formOpen && formRef.current) {
       formRef.current.scrollIntoView({ block: "start", behavior: "auto" });
@@ -134,7 +142,7 @@ export function RecordingsAdmin({
   }, [formOpen, target]);
   async function save(event: FormEvent) {
     event.preventDefault();
-    if (locked.current) return;
+    if (locked.current || !editRef.current) return;
     locked.current = true;
     setBusy(true);
     setError("");
@@ -179,7 +187,7 @@ export function RecordingsAdmin({
     }
   }
   async function toggle(item: StreamRecording) {
-    if (locked.current || !inScope(item)) return;
+    if (locked.current || !editRef.current || !inScope(item)) return;
     locked.current = true;
     setBusy(true);
     setError("");
@@ -272,12 +280,14 @@ export function RecordingsAdmin({
             {compact ? "Gravações do evento" : "Histórico de gravações"}
           </h2>
           <p>
-            {compact
+            {!canEdit
+              ? "Consulte as gravações e assista aos replays. Para alterar, peça ao super admin a permissão “Gerenciar lives e gravações”."
+              : compact
               ? "Cole o link do vídeo salvo para a galera rever esta scrim."
               : "Guarde o link do replay, sem perder o registro quando trocar a live."}
           </p>
         </div>
-        {page && (superAdmin || rooms.length > 0) && (
+        {canEdit && page && (superAdmin || rooms.length > 0) && (
           <button type="button" disabled={busy} onClick={() => begin()}>
             {compact ? "Adicionar gravação" : "Adicionar replay"}
           </button>
@@ -303,7 +313,7 @@ export function RecordingsAdmin({
           Carregando gravações…
         </p>
       )}
-      {formOpen && page && (
+      {canEdit && formOpen && page && (
         <form
           ref={formRef}
           className="recording-form"
@@ -425,8 +435,9 @@ export function RecordingsAdmin({
       )}
       {page && !page.recordings.length && !formOpen && (
         <p className="muted">
-          Nenhuma gravação registrada. Ao terminar a live, adicione o link do
-          replay.
+          {canEdit
+            ? "Nenhuma gravação registrada. Ao terminar a live, adicione o link do replay."
+            : "Nenhuma gravação registrada neste acervo."}
         </p>
       )}
       {page && page.recordings.length > 0 && (
@@ -471,14 +482,16 @@ export function RecordingsAdmin({
                   ) : (
                     <a href={`/gravacoes?replay=${item.id}`}>Assistir replay</a>
                   )}
-                  <button
-                    type="button"
-                    disabled={busy || (!item.isPublic && !canShow)}
-                    aria-label={`${item.isPublic ? "Ocultar" : "Exibir"} replay ${item.title}`}
-                    onClick={() => void toggle(item)}
-                  >
-                    {item.isPublic ? "Ocultar replay" : "Exibir replay"}
-                  </button>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      disabled={busy || (!item.isPublic && !canShow)}
+                      aria-label={`${item.isPublic ? "Ocultar" : "Exibir"} replay ${item.title}`}
+                      onClick={() => void toggle(item)}
+                    >
+                      {item.isPublic ? "Ocultar replay" : "Exibir replay"}
+                    </button>
+                  )}
                 </div>
               </li>
             );

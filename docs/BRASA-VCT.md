@@ -1,24 +1,28 @@
 # Brasa: VCT no centro e identidade em todo o site
 
-Implementação da organização aprovada no grill. Salas 5v5 continuam sendo a
-experiência principal; X1 permanece uma modalidade secundária em preparação.
-Enquetes, votos e participação democrática foram adiados pelo Caio.
+Salas 5v5 são a experiência principal. O site público apresenta a comunidade,
+as scrims, o histórico e as gravações. O conceito X1 está preservado no código,
+mas oculto das páginas públicas. Enquetes, votos e participação democrática
+continuam adiados pelo Caio.
 
 ## Entrada e navegação
 
 - `/`: apresentação da comunidade e VCT em destaque, usando dados públicos reais.
 - `/vct`: lista das salas públicas, mantendo busca, fases e links existentes.
-- `/historico`: somente os VCTs encerrados.
+- `/historico`: VCTs encerrados e em **Empate técnico · pode retomar**.
+- `/gravacoes`: acervo público dos links de replays.
 - `/s/:id`: sala existente, com **Times, Veto, Partida, Relatório e Linha do tempo**.
 - `/admin`: organização e permissões atuais, acessível por **Minha organização**.
 - `/admin/management`: gestão exclusiva do super admin, incluindo o destaque.
-- `/x1`: apresentação secundária, com acesso à demonstração identificada.
-- `/preview/brasa?tela=x1`: chave X1 com dados locais de exemplo.
-- `/preview/brasa?tela=sugestoes`: sugestões locais de apelido e título.
-- `/preview/brasa` sem tela específica abre a home VCT, preservando o link antigo.
+- `/admin/lives`: consulta da mídia dos próprios eventos; edição depende da
+  permissão concedida. O super admin consulta todos os eventos e configura a
+  live independente na home.
+- Os antigos caminhos `/x1` e `/preview/brasa`, incluindo os exemplos de chave
+  e sugestões, voltam à home; não oferecem o conceito ao público.
 
-O menu público é **Início · VCT · X1 · Histórico**. O admin vê a mesma home pública
-e seus atalhos de organização. Sugestões do exemplo ficam dentro do evento.
+O menu público é **Início · VCT · Histórico · Gravações**. O admin vê a mesma home
+pública e seus atalhos de organização. **Lives e gravações** fica disponível
+para consulta administrativa mesmo quando a conta não possui edição de mídia.
 
 ## Como o destaque funciona
 
@@ -32,10 +36,28 @@ jogos sem importação não ganham estatísticas estimadas nem edição manual.
 O Caio pode fixar uma sala pública em **Administração → Todas as salas → VCT em
 destaque na home → Configurar**. Escolher **Automático** remove a fixação.
 
-Uma sala fixada oculta, excluída ou ausente da listagem não aparece na home. O site
+Uma sala fixada oculta, excluída, em empate técnico ou ausente da listagem não aparece na home. O site
 retoma a seleção automática. A escolha armazenada permanece privada para o Caio;
 se a sala voltar a ser publicada, volta a ser elegível para a fixação.
 Publicação, exclusão e transferência seguem as permissões já existentes.
+
+## Pausa e mídia do evento
+
+**Declarar empate técnico → Pausar scrim** tira a sala dos destaques e das listas
+ativas sem alterar jogadores, mapas ou placar. Ela permanece no histórico e
+pode voltar à fase anterior com **Retomar scrim**. A pausa e a retomada chegam
+aos espectadores pelo log Realtime. Veja [EVENT-PAUSE-MEDIA.md](EVENT-PAUSE-MEDIA.md).
+
+O player fica na própria sala, em **Acompanhe este evento**. **Ao vivo** reúne
+links e perspectivas de Twitch, YouTube e Kick; **Gravações** reúne os replays
+daquele evento. Não é necessário criar uma transmissão em outro painel para
+depois adicioná-la à scrim. O espectador troca sua perspectiva sem alterar a
+seleção dos demais.
+
+O Caio também pode divulgar uma live independente na página inicial, sem scrim.
+Publicar ou ocultar o player é uma ação manual: o site não detecta início/fim
+da live. O acervo mantém links de vídeos, sem copiar arquivos; a disponibilidade
+depende da plataforma. Consulte [STREAMS.md](STREAMS.md).
 
 ### Instalação necessária apenas para fixar uma sala
 
@@ -62,7 +84,7 @@ Barlow Condensed nos títulos, Source Sans 3 nos textos, fontes locais com OFL.
 As duas equipes continuam distinguíveis por cores próprias e rótulos.
 
 A identidade foi aplicada à home, listas, salas, login, painéis administrativos,
-importação, foco, sorteios, demonstração X1 e guia HTML/PDF. As abas e os fluxos
+importação, foco, sorteios, players e guia HTML/PDF. As abas e os fluxos
 do VCT, importação exclusiva por API e correção de K/D/A após importar foram
 preservados. O favicon e o título do navegador também usam Brasa.
 
@@ -70,7 +92,7 @@ Marca e ícones compartilhados ficam em `src/client/ui`. A listagem pública foi
 extraída para `usePublicRooms`, preservando atualização em foco, consultas quando
 a aba está visível e cookies necessários à proteção do Preview.
 
-## Validação
+## Evidências da entrega inicial da identidade
 
 - `npm ci --cache /tmp/valorantscrim-npm-cache`, typecheck, build e testes.
 - **366 testes em 30 arquivos**, incluindo destaque, permissões, conflito de
@@ -95,7 +117,8 @@ Capturas: [home desktop](images/brasa-home-desktop.png),
 ## Etapas seguintes
 
 X1 persistente, convites e sugestões reais de apelido/título seguem no plano.
-O exemplo X1 continua local e não transmite resultados para espectadores.
+O conceito X1 permanece local no código, sem transmissão de resultados e sem
+acesso público. A [referência técnica](BRASA-PREVIEW.md) preserva suas regras.
 A reorganização completa do servidor legado fica para uma entrega própria,
 sem misturar mudanças de autenticação ao trabalho visual. Domínio e participação
 por votação permanecem adiados.

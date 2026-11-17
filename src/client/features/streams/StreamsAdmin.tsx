@@ -33,26 +33,26 @@ export function StreamsAdmin() {
         <div>
           <h1>Lives e gravações</h1>
           <p>
-            Abra o evento para colocar os links. O player e as gravações ficam
-            junto da scrim.
+            Consulte as lives e gravações dos seus eventos. O player fica junto
+            da scrim; as alterações dependem das suas permissões.
           </p>
         </div>
         <a className="button" href="/admin">
           Voltar para meus eventos
         </a>
       </header>
-      {auth.can("editRoom") ? (
-        <MediaOverview
-          key={auth.email}
-          superAdmin={auth.isSuperAdmin}
-          canPublish={auth.can("publishRooms")}
-        />
-      ) : (
-        <section className="card">
-          <h2>Seu acesso não permite configurar lives.</h2>
-          <p>Peça ao super admin a permissão “Editar a sala”.</p>
-        </section>
+      {!auth.can("manageStreams") && (
+        <p className="callout" role="status">
+          Acesso de consulta. Peça ao super admin a permissão “Gerenciar lives e
+          gravações” para alterar os links e replays.
+        </p>
       )}
+      <MediaOverview
+        key={auth.email}
+        superAdmin={auth.isSuperAdmin}
+        canPublish={auth.can("publishRooms")}
+        canEdit={auth.can("manageStreams")}
+      />
     </main>
   );
 }
@@ -60,9 +60,11 @@ export function StreamsAdmin() {
 function MediaOverview({
   superAdmin,
   canPublish,
+  canEdit,
 }: {
   superAdmin: boolean;
   canPublish: boolean;
+  canEdit: boolean;
 }) {
   const [rooms, setRooms] = useState<ScrimSummary[] | null>(null),
     [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
@@ -75,6 +77,8 @@ function MediaOverview({
   const [title, setTitle] = useState("Live do clube"),
     [links, setLinks] = useState([{ channel: "", label: "" }]);
   const locked = useRef(false);
+  const editRef = useRef(canEdit && superAdmin);
+  editRef.current = canEdit && superAdmin;
   const home = broadcasts.find((item) => item.roomId === null);
   useEffect(() => {
     const ctrl = new AbortController();
@@ -102,7 +106,11 @@ function MediaOverview({
     })();
     return () => ctrl.abort();
   }, [retry]);
+  useEffect(() => {
+    if (!canEdit || !superAdmin) setHomeOpen(false);
+  }, [canEdit, superAdmin]);
   function editHome() {
+    if (!editRef.current) return;
     setTitle(home?.title ?? "Live do clube");
     setLinks(
       home?.channels.length
@@ -119,7 +127,7 @@ function MediaOverview({
   async function write(
     config: Pick<Broadcast, "title" | "channels" | "enabled" | "promoteHome">,
   ) {
-    if (locked.current) return;
+    if (locked.current || !editRef.current) return;
     locked.current = true;
     setBusy(true);
     setError("");
@@ -233,11 +241,11 @@ function MediaOverview({
         ) : (
           <div className="stream-visibility-empty">
             <p>
-              <strong>Comece criando um evento.</strong>
-              <span>Depois, cole os links no player da própria scrim.</span>
+              <strong>Nenhum evento sob sua responsabilidade.</strong>
+              <span>As lives e gravações dos seus eventos aparecerão aqui.</span>
             </p>
             <a href="/admin" className="button">
-              Criar evento
+              Ver meus eventos
             </a>
           </div>
         )}
@@ -259,35 +267,37 @@ function MediaOverview({
                     : "Nenhuma live independente"}
               </strong>
             </div>
-            <div className="event-media-actions">
-              <button type="button" disabled={busy} onClick={editHome}>
-                {home?.channels.length
-                  ? "Editar links da página inicial"
-                  : "Adicionar link na página inicial"}
-              </button>
-              {home?.channels.length ? (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() =>
-                    void write({
-                      title: home.title,
-                      channels: home.channels,
-                      enabled: !home.enabled,
-                      promoteHome: false,
-                    })
-                  }
-                >
-                  {busy
-                    ? "Salvando…"
-                    : home.enabled
-                      ? "Ocultar da página inicial"
-                      : "Exibir na página inicial"}
+            {canEdit && (
+              <div className="event-media-actions">
+                <button type="button" disabled={busy} onClick={editHome}>
+                  {home?.channels.length
+                    ? "Editar links da página inicial"
+                    : "Adicionar link na página inicial"}
                 </button>
-              ) : null}
-            </div>
+                {home?.channels.length ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      void write({
+                        title: home.title,
+                        channels: home.channels,
+                        enabled: !home.enabled,
+                        promoteHome: false,
+                      })
+                    }
+                  >
+                    {busy
+                      ? "Salvando…"
+                      : home.enabled
+                        ? "Ocultar da página inicial"
+                        : "Exibir na página inicial"}
+                  </button>
+                ) : null}
+              </div>
+            )}
           </div>
-          {homeOpen && (
+          {canEdit && homeOpen && (
             <form
               className="event-live-form"
               onSubmit={(event) => void submit(event)}
@@ -399,6 +409,7 @@ function MediaOverview({
             rooms={rooms}
             superAdmin={superAdmin}
             canPublish={canPublish}
+            canEdit={canEdit}
             target={null}
           />
         )}

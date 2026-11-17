@@ -2,12 +2,12 @@
 
 Depois de entrar em `/admin` com uma conta liberada conforme [ADMIN-SETUP.md](ADMIN-SETUP.md), o organizador pode buscar na aba **Partida** por `Nome#TAG` e região ou colar um UUID/link direto `https://tracker.gg/valorant/match/<UUID>`. A busca retorna até dez partidas recentes de PC, customizadas padrão, completas, com dois times de cinco. A disponibilidade e o atraso dependem da HenrikDev; não é acompanhamento ao vivo.
 
-## Preparar o Preview antes do merge
+## Ambiente necessário
 
-1. No projeto Supabase existente, aplique as migrações pendentes nesta ordem: `20261016_scrims.sql`, `20261017_match_imports.sql` e **`20261104_room_access.sql`**. A última é obrigatória para os controles de acesso desta versão. Não apague tabelas nem reaplique dados: esta mudança é aditiva e preserva o histórico.
+1. No projeto Supabase existente, confira as migrações de scrims, importação, acesso às salas e super admin: `20261016_scrims.sql`, `20261017_match_imports.sql`, `20261104_room_access.sql` e `20261105_super_admin.sql`. Aplique apenas as pendentes, nessa ordem, preservando tabelas e histórico. A sequência completa do site está em [README-VERCEL.md](../README-VERCEL.md#ordem-das-migrações).
 2. Na Vercel, configure `HENRIK_API_KEY` como segredo **somente no servidor**, para os ambientes desejados (Preview/Production). Não use prefixo `VITE_`. O segredo do ambiente Codex não é sincronizado automaticamente para a Vercel.
 3. Faça um novo deploy após configurar o segredo. As quatro variáveis Supabase existentes continuam necessárias.
-4. Valide o fluxo abaixo com dados fictícios no Preview. Preview e Production compartilham o Supabase; a API antiga ignora a visibilidade. A ocultação só deve ser tratada como privada depois de publicar a versão nova nos domínios ativos e aposentar os deployments/Previews antigos com acesso de serviço ao banco.
+4. Valide o fluxo abaixo com dados fictícios. Preview e Production compartilham o Supabase; versões antigas da API podem ignorar capacidades, propriedade e visibilidade. Atualize os domínios ativos e aposente ou bloqueie deployments antigos com acesso de serviço ao banco.
 
 ## Fluxo do admin
 
@@ -20,13 +20,15 @@ Depois de entrar em `/admin` com uma conta liberada conforme [ADMIN-SETUP.md](AD
 - Revise os dez vínculos e marque a confirmação explícita. Importe. Se a sala mudou, revise a versão atual antes de confirmar novamente.
 - Confira o resultado e use o olho **Mostrar para espectadores** se a sala ainda estiver oculta. A sala também pode ser publicada antes, para a galera acompanhar o veto e os sorteios.
 
+Durante um **empate técnico**, as buscas e importações ficam bloqueadas. Use **Retomar scrim** antes de continuar. A pausa mantém os resultados já importados, os vínculos e o placar; veja [EVENT-PAUSE-MEDIA.md](EVENT-PAUSE-MEDIA.md).
+
 O resultado preenche rounds, placar, K/D/A, agente, dano, ADR, ACS e HS% quando disponíveis. A importação avança a série normalmente e chega aos espectadores pelo evento Realtime existente. A tela de relatório e o Markdown incluem a fonte. Não há marcação manual nem desfazer rounds; a API recusa esses comandos. K/D/A só pode ser ajustado pela ação **Corrigir estatística** depois que o mapa foi importado. A correção é marcada e registrada, preservando os demais dados da API e o evento original. Mapas que já têm dados não são sobrescritos nesta versão.
 
 Os lados reais são derivados do primeiro round quando disponíveis, para o relatório por lado, sem mudar o veto original. A API não fornece timestamps absolutos dos rounds nesse contrato: o evento guarda a sequência, usa o início da partida como referência e usa a duração real informada para o relatório. Não use esses timestamps para sincronizar uma gravação round a round.
 
 ## Persistência e segurança
 
-`POST /api/scrims/:id/imports` aceita as ações `search`, `detail` e `confirm`. Todas exigem a sessão de administrador, verificada no servidor pelo Supabase Auth e pela permissão `app_metadata.scrim_admin: true`, antes de consultar a HenrikDev. A sessão usa cookies HttpOnly; o navegador não envia uma chave de sala no corpo da requisição. O navegador envia apenas seleção, mapa, times, vínculos e versão; o servidor consulta novamente a partida na confirmação. IDs e regiões são validados, e as requisições são dirigidas exclusivamente a `api.henrikdev.xyz`.
+`POST /api/scrims/:id/imports` aceita as ações `search`, `detail` e `confirm`. Todas exigem sessão de uma conta administrativa ativa, propriedade da sala e `importMatches`, ou o acesso global do super admin, antes de consultar a HenrikDev. A política privada do banco é a autoridade; flags antigas de `app_metadata` não concedem edição. A confirmação transacional revalida sessão, permissões e versões. A sessão usa cookies HttpOnly; o navegador não envia uma chave de sala no corpo da requisição. O navegador envia apenas seleção, mapa, times, vínculos e versão; o servidor consulta novamente a partida na confirmação. IDs e regiões são validados, e as requisições são dirigidas exclusivamente a `api.henrikdev.xyz`.
 
 Um único evento `match.import` contém os dados normalizados e dez associações. O estado mantém IDs manuais, nomes, veto e anotações e adiciona PUUID/Riot ID aos jogadores. A RPC `import_match_result` grava estado, evento e resposta original privada na mesma transação, com comparação de versão e do hash interno da sala, mantido para compatibilidade das RPCs. Esse hash é obtido pelo servidor após autorizar a conta; não funciona como credencial enviada pelo cliente. A chave da Henrik, senhas, cookies, tokens e hash não são incluídos no evento público. A auditoria do evento ainda identifica o ator genericamente como **admin da scrim**: o login autoriza a operação, mas o evento não atribui a importação a uma conta específica.
 

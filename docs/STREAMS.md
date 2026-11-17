@@ -1,6 +1,6 @@
 # Twitch, YouTube, Kick e gravações na Brasa
 
-## Antes de publicar esta versão
+## Instalação e atualização
 
 Aplicar **uma vez** [20261113_streams.sql](../supabase/migrations/20261113_streams.sql)
 no SQL Editor do projeto Supabase já usado pelo site. Requer a migração de super
@@ -11,6 +11,41 @@ Para as três plataformas e o acervo, aplicar depois
 [20261114_multiplatform_streams.sql](../supabase/migrations/20261114_multiplatform_streams.sql).
 Ela amplia a validação e adiciona uma tabela de gravações. Os canais Twitch já
 salvos continuam no mesmo formato e não são reescritos.
+
+Para separar consulta de edição, aplique depois
+[20261116_media_permissions.sql](../supabase/migrations/20261116_media_permissions.sql).
+Em um projeto com as migrações anteriores instaladas, este é o único SQL novo
+necessário para a atualização de permissões. Coordene uma janela curta:
+**publique primeiro a aplicação compatível e execute o SQL logo depois**. O
+deploy não executa o arquivo. A aplicação antiga rejeita a política com doze
+chaves; SQL primeiro interrompe login e acesso administrativo, inclusive do Caio.
+A aplicação nova aceita a política anterior com edição de mídia desligada;
+enquanto o SQL está pendente, a mídia administrativa retorna 503 e operações
+de contas com doze capacidades ficam indisponíveis. Consultas e players públicos
+existentes continuam disponíveis. Siga a [ordem de atualização e recuperação](../README-VERCEL.md#atualizar-permissões-de-mídia-em-um-projeto-em-uso)
+e confirme os dois passos no ambiente de destino. Não é necessário rodar SQL
+para conceder a capacidade a cada pessoa: depois da instalação, use
+**Administração → Administradores**.
+
+## Quem pode consultar e editar
+
+Toda conta administrativa ativa abre **Lives e gravações** e consulta links,
+configurações de exibição e replays das próprias salas, mesmo sem edição de
+mídia. O Caio consulta todas as salas. Essa leitura inclui o conteúdo privado
+autorizado do próprio evento e não concede acesso às salas ocultas de outro
+organizador.
+
+**Gerenciar lives e gravações** (`manageStreams`) libera adicionar/alterar links,
+exibir ou ocultar a live e cadastrar replays. Essa capacidade é separada de
+**Editar a sala**. As contas existentes que não são super admin começam com ela
+desligada; o Caio pode liberá-la por conta. O perfil padrão **Organizador** também
+começa sem edição de mídia. Escolher explicitamente **Completo** inclui essa
+capacidade, que pode ser desmarcada nos ajustes individuais.
+
+Publicar um replay ou destacar uma live de evento na home também exige
+**Publicar ou ocultar salas**, além de uma sala publicada. A live independente
+da home continua exclusiva do super admin, mesmo quando um organizador recebe
+`manageStreams`. Revogar edição mantém a consulta e os links/replays salvos.
 
 ## Configuração em poucos passos
 
@@ -40,11 +75,29 @@ perspectivas e a divulgação na home. A visibilidade rápida usa os dados salvo
 sem publicar campos que você ainda está editando. Um conflito entre abas exige
 revisar a configuração atual antes de salvar novamente.
 
-A área **Lives e gravações** é um diretório com atalhos para os eventos. Não é
+A área **Lives e gravações** é um diretório com atalhos para os eventos. Quem
+tem apenas consulta vê o conteúdo salvo sem os formulários de alteração. Não é
 necessário criar uma transmissão em outro painel para depois vinculá-la à sala.
 A divulgação independente na página inicial permanece em um bloco separado,
-exclusivo do super admin. A organização por evento usa as migrações já instaladas;
-não é necessário aplicar outro SQL.
+exclusivo do super admin.
+
+## Live na página inicial, sem scrim
+
+Este fluxo é exclusivo do super admin:
+
+1. Abra **Lives e gravações** e o bloco **Divulgar uma live sem evento**.
+2. Use **Adicionar link na página inicial**, informe o título e cole um ou mais
+   links de Twitch, YouTube ou Kick. **Adicionar outra perspectiva** monta o
+   carrossel independente da home.
+3. Clique em **Salvar e exibir na página inicial**. Não é necessário criar ou
+   selecionar uma scrim.
+4. Para retirar o player depois, use **Ocultar da página inicial**. Os links
+   continuam salvos e podem ser exibidos novamente.
+
+O estado **Exibindo na página inicial** significa que o player está publicado
+no site. Ligar a live na Twitch/YouTube/Kick não publica o player automaticamente;
+encerrar a transmissão também não o oculta. O site não detecta canal online ou
+offline. Ocultar o player não encerra a transmissão na plataforma.
 
 ## Regras e limites
 
@@ -55,7 +108,7 @@ não é necessário aplicar outro SQL.
   quando disponível. Kick usa `player.kick.com` para lives e um link para abrir
   o chat na plataforma. Restrições do canal/plataforma podem bloquear embeds;
   o link original continua acessível.
-- Organizador com **Editar a sala** configura as próprias salas. Super admin
+- Organizador com **Gerenciar lives e gravações** configura as próprias salas. Super admin
   configura todas e a transmissão independente da home. Destacar um evento na
   home também exige **Publicar ou ocultar salas** e uma sala pública.
 - Salas ocultas não aparecem na home e só disponibilizam sua transmissão para
@@ -73,18 +126,20 @@ não é necessário aplicar outro SQL.
   preview e futuros domínios não precisam ser fixados no código. A hospedagem
   usa HTTPS. Em telas pequenas o viewport mínimo de 400×300 da Twitch é ajustado
   visualmente ao espaço disponível; o chat fica abaixo e pode ser ocultado.
-- X1 segue sendo uma prévia local. Não existe vínculo persistente de live com
-  um campeonato X1 nesta versão; é possível divulgá-la na home independente.
+- O conceito X1 está oculto do público. Lives podem ser vinculadas às scrims
+  VCT existentes ou divulgadas na home independente pelo super admin.
 
 ## Segurança e recuperação
 
 `scrim_broadcasts` tem RLS e nenhum acesso direto para anon, authenticated ou
 service_role. A API usa a service role somente no servidor e RPCs delimitadas.
-As funções validam conta ativa, versão da sessão, propriedade e permissões,
-mesmo para chamadas com service role. Escritas usam bloqueios de conta/sala,
+As funções validam conta ativa, versão da sessão e propriedade em consultas
+administrativas. Escritas também exigem `manageStreams` e, quando necessário,
+`publishRooms`, mesmo para chamadas com service role. Escritas usam bloqueios de conta/sala,
 versão otimista e auditoria privada; conflito de duas abas não sobrescreve dados.
 
-Antes da migração, as páginas públicas continuam funcionando sem transmissões.
+Sem as migrações iniciais de streams, as páginas públicas continuam funcionando
+sem transmissões.
 O painel exibe o nome exato do SQL pendente. Se houver falha de acesso durante
 atualização da configuração, o player é removido até a reconexão confirmar o
 acesso novamente. Não há necessidade de reaplicar migrações anteriores.
@@ -102,7 +157,7 @@ em `/gravacoes?replay=UUID` e páginas adicionais em “Ver mais gravações”.
    por padrão em eventos encerrados ou em empate técnico, caso o espectador
    ainda não tenha escolhido outra aba.
 2. Informe título, perspectiva e o link do vídeo salvo. No YouTube, o ID da
-   live pode continuar sendo o do replay; o campo já vem preenchido nesse caso.
+   live pode continuar sendo o do replay; confira o vídeo antes de salvar.
 3. O evento já vem definido. Escolha se o replay deve aparecer publicamente.
    Salas ocultas mantêm o cadastro privado. Cadastros independentes de evento
    continuam disponíveis ao super admin no acervo geral.
@@ -122,7 +177,8 @@ plataforma pode tornar seu link indisponível.
 
 Gravações seguem o proprietário atual da sala e as permissões existentes. Uma
 sala oculta/excluída sai do acervo público, mas seus registros ficam disponíveis
-à administração autorizada. URLs de vídeos não ficam na tabela de configuração
+à administração autorizada para consulta. Adicionar ou alterar publicação depende
+das capacidades de edição e publicação correspondentes. URLs de vídeos não ficam na tabela de configuração
 mutável da live. Há deduplicação por vídeo/destino, controle de versão para
 visibilidade, auditoria privada e paginação.
 

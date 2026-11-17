@@ -94,6 +94,14 @@
   font-size: 14px;
   line-height: 1.6;
 }
+.event-media-readonly-links {
+  margin: 14px 0;
+  padding-left: 20px;
+  overflow-wrap: anywhere;
+}
+.event-media-readonly-links li + li {
+  margin-top: 8px;
+}
 .event-live-form {
   display: grid;
   gap: 16px;

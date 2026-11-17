@@ -1,14 +1,16 @@
-# Prévia X1 da Brasa
+# Conceito X1 da Brasa — referência preservada
 
 A organização atual do site e a home VCT estão em [BRASA-VCT.md](BRASA-VCT.md).
 
-O X1 continua em uma demonstração com dados locais de exemplo:
+O X1 foi um conceito de interface e não faz parte do site público atual. Seus
+arquivos e regras continuam preservados em `src/client/features/brasa-preview`
+para desenvolvimento futuro. A home e o menu público não anunciam a modalidade.
 
-- `/x1`: apresentação da modalidade secundária.
-- `/preview/brasa?tela=x1`: chave interativa.
-- `/preview/brasa?tela=sugestoes`: apelidos e títulos com aprovação simulada.
+Os antigos caminhos `/x1`, `/preview/brasa?tela=x1` e
+`/preview/brasa?tela=sugestoes` voltam à home. Este documento descreve o
+comportamento do conceito preservado, não um recurso disponível para os jogadores.
 
-O endereço antigo `/preview/brasa` agora abre a home, cujo foco é VCT.
+O foco público permanece nas salas VCT 5v5, lives e gravações dos eventos.
 
 Em **Configurar exemplo**, o organizador escolhe o modelo:
 
@@ -53,7 +55,7 @@ ficam em `src/client/ui`. A marca compacta vetorial é uma proposta baseada na
 chama, escudo e paleta do logo fornecido; não reproduz o original com os talheres.
 As fontes locais incluem suas licenças OFL.
 
-A revisão de dupla eliminação passou por `npm run typecheck`, `npm run build` e
+Na entrega original, a revisão de dupla eliminação passou por `npm run typecheck`, `npm run build` e
 `npm test`: 409 testes em 31 arquivos, incluindo 41 testes de dupla eliminação e
 5 de configuração. As simulações cobrem 2 a 32 participantes, chaves esparsas de
 32 posições, roteamento sem derrotas fictícias, final única, correções nas duas

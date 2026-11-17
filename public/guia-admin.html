@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="dark light">
   <link rel="icon" href="/brand/brasa-symbol.svg">
   <link rel="stylesheet" href="/brand/fonts/fonts.css">
-  <meta name="description" content="Guia para entrar como administrador, organizar os times, escolher os mapas e importar uma scrim de VALORANT.">
+  <meta name="description" content="Guia da Brasa para organizar scrims, importar resultados, pausar com empate técnico e acompanhar lives e gravações conforme as permissões da conta.">
   <title>Guia do administrador · Brasa</title>
   <style>
     :root { --bg:#100f0e; --panel:#1d1a17; --panel-2:#29231d; --line:#4b3d30; --text:#f4ece0; --muted:#b5a89b; --accent:#f1c67c; --action:#ff7a18; color-scheme:dark; font-family:'Source Sans 3',Arial,sans-serif; }
@@ -115,15 +115,15 @@
 <body>
   <header class="topbar"><a class="brand" href="/"><img src="/brand/brasa-symbol.svg" width="30" height="34" alt="" style="vertical-align:middle;margin-right:8px">Brasa</a><nav aria-label="Ações do guia"><a href="/admin">Minha organização</a><a href="/guia-admin.pdf" download>Baixar PDF</a><a href="/">Voltar à Brasa</a></nav></header>
   <div class="layout">
-    <aside class="toc" aria-label="Índice"><p>Guia do administrador</p><ol><li><a href="#comeco">Comece por aqui</a></li><li><a href="#preparar">Entrar, criar e montar times</a></li><li><a href="#mapas">Escolher mapas e chamar a sala</a></li><li><a href="#resultado">Trazer o resultado</a></li><li><a href="#finalizar">Finalizar e resolver dúvidas</a></li></ol><small>Use o PDF para mandar este passo a passo aos organizadores.</small></aside>
+    <aside class="toc" aria-label="Índice"><p>Guia do administrador</p><ol><li><a href="#comeco">Comece por aqui</a></li><li><a href="#preparar">Entrar e montar os times</a></li><li><a href="#mapas">Mapas, foco e sorteios</a></li><li><a href="#resultado">Importar o resultado</a></li><li><a href="#pausa">Empate técnico e retomada</a></li><li><a href="#lives">Lives no evento e na home</a></li><li><a href="#gravacoes">Guardar e assistir gravações</a></li><li><a href="#acessos">Contas, permissões e salas</a></li><li><a href="#finalizar">Relatório e dúvidas</a></li></ol><small>Atualizado em 16/11/2026.<br>Use o PDF para compartilhar este passo a passo com os organizadores.</small></aside>
     <main>
       <section class="sheet" id="comeco" aria-labelledby="title-comeco">
-        <div class="sheet-head"><strong>Brasa · Guia do administrador</strong><span class="page-number">1 / 5</span></div>
+        <div class="sheet-head"><strong>Brasa · Guia do administrador</strong><span class="page-number">1 / 9</span></div>
         <h1 id="title-comeco">Organize a scrim e vá jogar.</h1>
         <p class="lead">Você cuida da sala. Os jogadores acompanham pelo link e entram no VALORANT para jogar.</p>
         <div class="roles">
-          <div class="role admin"><strong>Administrador</strong><p>Entra com e-mail e senha. Organiza suas próprias salas, conforme as ações liberadas pelo Caio.</p></div>
-          <div class="role viewer"><strong>Espectador</strong><p>Abre o link de uma sala publicada. Acompanha times, mapas, sorteios e resultados. Não precisa de conta.</p></div>
+          <div class="role admin"><strong>Administrador</strong><p>Entra com e-mail e senha. Consulta suas salas, lives e gravações. As ações de edição dependem das permissões liberadas pelo Caio.</p></div>
+          <div class="role viewer"><strong>Espectador</strong><p>Abre uma sala publicada e acompanha times, mapas, sorteios, resultados e vídeos disponíveis. Não precisa de conta.</p></div>
         </div>
         <h3>O caminho da partida</h3>
         <div class="flow" aria-label="Ordem das ações"><span>Entrar como admin</span><i>›</i><span>10 jogadores</span><i>›</i><span>5 contra 5</span><i>›</i><span>Veto</span><i>›</i><span>Jogar</span><i>›</i><span>Importar</span></div>
@@ -133,13 +133,14 @@
           <li><strong>Escolha os mapas seguindo a vez de cada time.</strong><p>Publique pelo olho, compartilhe o link com os amigos e joguem a customizada no VALORANT.</p></li>
           <li><strong>Ao terminar cada mapa, importe a partida.</strong><p>Confira o mapa, os times e os dez jogadores. O site traz placar, rounds e estatísticas.</p></li>
         </ol>
+        <p class="quiet">Vai transmitir? Os links ao vivo e as gravações ficam no bloco <span class="controls">Acompanhe este evento</span>, dentro da própria sala. Uma interrupção pode ser registrada como <span class="controls">Empate técnico</span> para continuar depois.</p>
         <div class="callout"><p><strong>Publique a sala antes de mandar o link.</strong> Use o olho para mostrar aos espectadores. E-mail e senha ficam só com os organizadores.</p></div>
-        <p class="print-only footer-note">Site: <a href="https://valorantscrim.vercel.app">valorantscrim.vercel.app</a> · Acesso de admin: <a href="https://valorantscrim.vercel.app/admin">valorantscrim.vercel.app/admin</a></p>
+        <p class="print-only footer-note">Atualizado em 16/11/2026 · Site: <a href="https://valorantscrim.vercel.app">valorantscrim.vercel.app</a><br>Acesso de admin: <a href="https://valorantscrim.vercel.app/admin">valorantscrim.vercel.app/admin</a></p>
         <div class="actions screen-only"><a class="button primary" href="/admin">Entrar como admin</a><a class="button" href="/guia-admin.pdf" download>Baixar este guia em PDF</a></div>
       </section>
 
       <section class="sheet" id="preparar" aria-labelledby="title-preparar">
-        <div class="sheet-head"><strong>Antes de abrir o VALORANT</strong><span class="page-number">2 / 5</span></div>
+        <div class="sheet-head"><strong>Antes de abrir o VALORANT</strong><span class="page-number">2 / 9</span></div>
         <h2 id="title-preparar">Entre, crie a sala e feche os times.</h2>
         <ol class="steps">
           <li><strong>Faça login.</strong><p>No início do site, toque em <span class="controls">Entrar como admin</span>. Preencha <span class="controls">E-mail</span> e <span class="controls">Senha</span> e toque em <span class="controls">Entrar</span>. Se você veio de uma sala, o site volta para ela após o login.</p></li>
@@ -156,7 +157,7 @@
       </section>
 
       <section class="sheet" id="mapas" aria-labelledby="title-mapas">
-        <div class="sheet-head"><strong>Mapas e sala acompanhando</strong><span class="page-number">3 / 5</span></div>
+        <div class="sheet-head"><strong>Mapas e sala acompanhando</strong><span class="page-number">3 / 9</span></div>
         <h2 id="title-mapas">Siga a vez indicada na tela.</h2>
         <ol class="steps">
           <li><strong>Defina quem começa o veto.</strong><p>Na aba <span class="controls">Times</span>, em <span class="controls">Iniciar veto</span>, marque o time que fará a primeira escolha e toque em <span class="controls">Começar veto</span>. Esse botão só libera com os times em 5 × 5.</p></li>
@@ -170,11 +171,11 @@
         <p class="quiet">Abra <span class="controls">Sorteios → Cara ou coroa</span> e preencha <span class="controls">O que estamos decidindo?</span> antes de sortear.</p>
         <div class="example">“Quem começa banindo? Cara = Tartarugas; coroa = Lebres.”</div>
         <p class="quiet">O motivo e a moeda aparecem para todos. O admin aceita ou descarta. Depois, registre a consequência na partida, por exemplo escolhendo quem começa o veto.</p>
-        <div class="callout"><p><strong>Enquanto o sorteio está aberto, a sala fica pausada.</strong> Resolva com <span class="controls">Aceitar resultado</span> ou <span class="controls">Descartar</span>. Sem decisão por dois minutos, ele expira e libera a sala; nada é aceito automaticamente.</p></div>
+        <div class="callout"><p><strong>Enquanto o sorteio está aberto, os controles de jogo ficam bloqueados.</strong> Resolva com <span class="controls">Aceitar resultado</span> ou <span class="controls">Descartar</span>. Sem decisão por dois minutos, ele expira; nada é aceito automaticamente. Esse bloqueio temporário não declara empate técnico.</p></div>
       </section>
 
       <section class="sheet" id="resultado" aria-labelledby="title-resultado">
-        <div class="sheet-head"><strong>Depois de cada mapa</strong><span class="page-number">4 / 5</span></div>
+        <div class="sheet-head"><strong>Depois de cada mapa</strong><span class="page-number">4 / 9</span></div>
         <h2 id="title-resultado">Traga o resultado da partida.</h2>
         <p class="quiet">Antes do resultado, o espectador vê <span class="controls">Aguardando importação da partida para você</span>. Ao encerrar a customizada de PC 5 × 5, busque o nick ou o link e confira os dados antes de salvar.</p>
         <ol class="steps">
@@ -189,22 +190,91 @@
         <div class="callout"><p><strong>Última conferência:</strong> mesmo mapa, times certos, placar certo e <strong>10 de 10</strong> jogadores associados. Marque <span class="controls">Conferi as dez associações…</span> e toque em <span class="controls">Importar placar, rounds e estatísticas</span>.</p><p>Se aparecer <span class="controls">A sala mudou</span>, use <span class="controls">Revisar versão atual</span>, confira novamente e marque a confirmação outra vez.</p><p>Confira o resultado e, se puder publicar e a sala ainda estiver oculta, use o olho <span class="controls">Mostrar para espectadores</span>.</p></div>
       </section>
 
+      <section class="sheet" id="pausa" aria-labelledby="title-pausa">
+        <div class="sheet-head"><strong>Se a galera precisar parar</strong><span class="page-number">5 / 9</span></div>
+        <h2 id="title-pausa">Declare empate técnico e continue depois.</h2>
+        <p class="lead">Alguém não pode continuar? Guarde a scrim no ponto em que ela está, sem inventar um vencedor.</p>
+        <ol class="steps">
+          <li><strong>Na sala, toque em Declarar empate técnico.</strong><p>Essa ação exige permissão para editar a sala. Resolva ou descarte um sorteio aberto antes de pausar.</p></li>
+          <li><strong>Confira o motivo e toque em Pausar scrim.</strong><p>O motivo começa como “Um jogador não pôde continuar.” e pode ser ajustado. A sala mostra <span class="controls">Empate técnico · scrim pausada</span> para todos.</p></li>
+          <li><strong>Quando a galera voltar, use Retomar scrim.</strong><p>A sala retorna à fase anterior: montagem dos times, veto ou partida. Os espectadores recebem a mudança sem precisar atualizar a página.</p></li>
+        </ol>
+        <h3>O que fica guardado?</h3>
+        <ul class="checks"><li>Os dez jogadores, os capitães e a formação dos times.</li><li>Os mapas, o veto, os resultados importados e as estatísticas.</li><li>O placar real da série, as anotações e a linha do tempo.</li><li>Os links ao vivo e as gravações já cadastrados.</li></ul>
+        <div class="example"><strong>Exemplo:</strong> se a série estava 1 × 1, ela continua 1 × 1. “Empate técnico” não altera o placar nem encerra a série por vitória.</div>
+        <h3>Onde a sala aparece durante a pausa?</h3>
+        <p class="quiet">Ela sai dos destaques da página inicial e da lista VCT ativa. Continua no <span class="controls">Histórico</span> como <span class="controls">Empate técnico · pode retomar</span> e permanece no painel do administrador.</p>
+        <div class="callout"><p><strong>Durante a pausa:</strong> times, veto, sorteios e importações ficam bloqueados. Você ainda pode consultar dados, adicionar anotações, chamar a atenção da sala e cuidar de lives e gravações, conforme suas permissões. Uma série já encerrada por resultado não é reaberta por esse botão.</p></div>
+      </section>
+
+      <section class="sheet" id="lives" aria-labelledby="title-lives">
+        <div class="sheet-head"><strong>Assistir sem sair da Brasa</strong><span class="page-number">6 / 9</span></div>
+        <h2 id="title-lives">Coloque a live dentro do evento.</h2>
+        <p class="quiet">Todo administrador ativo pode consultar a mídia das próprias salas em <span class="controls">Lives e gravações</span>. Abra o evento para ver o player. A permissão <span class="controls">Gerenciar lives e gravações</span> libera os botões de alteração.</p>
+        <ol class="steps">
+          <li><strong>Na sala, abra Acompanhe este evento → Ao vivo.</strong><p>Com edição liberada, toque em <span class="controls">Adicionar link ao vivo</span>. Não é necessário criar outra transmissão em um painel separado.</p></li>
+          <li><strong>Cole o link de quem vai transmitir.</strong><p>Aceita Twitch, YouTube e Kick. Para YouTube, use o link da live específica, não o do canal. O campo <span class="controls">Nome (opcional)</span> identifica a perspectiva, como “POV Caio” ou “Narração”.</p></li>
+          <li><strong>Inclua outras perspectivas, se houver.</strong><p>Use <span class="controls">Adicionar outra perspectiva</span>, até seis links sem repetir a mesma fonte. Depois toque em <span class="controls">Salvar e exibir neste evento</span>.</p></li>
+          <li><strong>Inicie a transmissão na plataforma e confira o player.</strong><p>O status <span class="controls">Exibindo live neste evento</span> confirma que o player foi publicado. Cada pessoa aperta play e troca de canal pelas setas; a escolha não muda o canal dos outros.</p></li>
+        </ol>
+        <p class="quiet"><span class="controls">Ampliar player</span> aumenta o vídeo. <span class="controls">Mostrar chat</span> abre o chat disponível da Twitch ou do YouTube. Na Kick, o chat abre pelo link da plataforma. A conversa no Discord continua normal.</p>
+        <p class="quiet">Use <span class="controls">Editar links da live</span> para atualizar as perspectivas. <span class="controls">Ocultar live</span> retira o player, mantendo os links salvos; <span class="controls">Exibir live</span> publica novamente. As mudanças chegam aos espectadores em até dez segundos.</p>
+        <h3>Live na página inicial, sem nenhuma scrim</h3>
+        <p class="quiet">Exclusivo do super admin: abra <span class="controls">Lives e gravações → Divulgar uma live sem evento → Adicionar link na página inicial</span>. Preencha o título e os links e use <span class="controls">Salvar e exibir na página inicial</span>. Ao terminar, use <span class="controls">Ocultar da página inicial</span>.</p>
+        <div class="callout"><p><strong>A publicação é manual.</strong> O site não detecta quando o canal entra ou sai do ar. Publicar o player não inicia a live; ocultá-lo não encerra a transmissão. Para divulgar um evento público na home, quem tem permissão também pode marcar <span class="controls">Destacar este evento na página inicial</span>.</p></div>
+      </section>
+
+      <section class="sheet" id="gravacoes" aria-labelledby="title-gravacoes">
+        <div class="sheet-head"><strong>Depois da live ou na pausa</strong><span class="page-number">7 / 9</span></div>
+        <h2 id="title-gravacoes">Guarde o replay no próprio evento.</h2>
+        <p class="lead">O site mantém o histórico com links dos vídeos. Não copia os arquivos das plataformas.</p>
+        <ol class="steps">
+          <li><strong>Abra Acompanhe este evento → Gravações.</strong><p>Ao encerrar a série ou declarar empate técnico, essa aba ganha prioridade para quem ainda não escolheu outra. Administradores podem consultar os registros das próprias salas, inclusive os ocultos.</p></li>
+          <li><strong>Com edição liberada, toque em Adicionar gravação.</strong><p>Informe <span class="controls">Título da gravação</span>, <span class="controls">Link do replay</span> e, se quiser, <span class="controls">Nome da perspectiva</span>. O vínculo com a scrim já vem definido.</p></li>
+          <li><strong>Escolha a visibilidade e salve.</strong><p>Se a conta puder publicar e a sala for pública, marque <span class="controls">Mostrar gravação para espectadores</span>. Toque em <span class="controls">Salvar gravação</span>. Sem publicação, o registro fica oculto para o público.</p></li>
+          <li><strong>Use Assistir gravação para conferir.</strong><p>O replay toca no mini player do evento quando a plataforma permite. Os espectadores também podem abrir o acervo em <span class="controls">Gravações</span>, no menu do site.</p></li>
+        </ol>
+        <h3>Qual link devo copiar?</h3>
+        <ul class="checks"><li><strong>Twitch:</strong> o vídeo salvo, no formato <code>twitch.tv/videos/…</code>. Ative o salvamento de transmissões anteriores na própria Twitch antes da live.</li><li><strong>YouTube:</strong> o vídeo específico. O link da live pode continuar sendo o do replay depois que o processamento terminar.</li><li><strong>Kick:</strong> o link do vídeo em <code>kick.com/canal/videos/…</code>. Nesta versão, o replay abre na plataforma.</li></ul>
+        <p class="quiet">Twitch e YouTube podem reproduzir as gravações no site. Os vídeos gravados não mostram o chat atual de outra live. <span class="controls">Ocultar replay</span> retira a gravação do público sem apagar seu registro; <span class="controls">Exibir replay</span> publica novamente, se você tiver a permissão necessária.</p>
+        <div class="callout"><p><strong>Copie o vídeo, não o canal.</strong> Um canal pode passar a exibir outra transmissão. O site não descobre replays automaticamente nem recupera vídeos que a plataforma apagou ou deixou expirar. Ocultar a live não cadastra nem remove a gravação.</p></div>
+      </section>
+
+      <section class="sheet" id="acessos" aria-labelledby="title-acessos">
+        <div class="sheet-head"><strong>Responsáveis, acesso e publicação</strong><span class="page-number">8 / 9</span></div>
+        <h2 id="title-acessos">Cada administrador cuida das próprias salas.</h2>
+        <p class="quiet">O Caio é o super admin: gerencia contas, permissões e todas as salas em <span class="controls">Administração</span>. Uma conta comum consulta e conduz somente as salas de que é responsável, dentro das ações liberadas.</p>
+        <h3>Para quem vai organizar</h3>
+        <ul class="checks"><li>Use a sua conta de administrador. Em uma sala de outra pessoa, você acompanha como espectador.</li><li>Todos os administradores ativos podem abrir <span class="controls">Lives e gravações</span> para consultar suas mídias. Consultar não libera cadastro, publicação ou alteração.</li><li>Se precisar de uma ação ausente, peça ao Caio para ajustar a permissão da sua conta. Ser administrador não libera todas as funções automaticamente.</li></ul>
+        <h3>Para o Caio: criar e ajustar acessos</h3>
+        <ol class="steps">
+          <li><strong>Abra Administração → Administradores.</strong><p>Use <span class="controls">Adicionar administrador</span> para criar um acesso. Informe os dados da pessoa e escolha o perfil inicial. Entregue a senha por um canal privado.</p></li>
+          <li><strong>Ajuste as ações permitidas.</strong><p>Escolha o modelo <span class="controls">Organizador</span> ou <span class="controls">Completo</span> e confira as opções individuais. Em contas existentes, use <span class="controls">Editar permissões</span>. As capacidades continuam limitadas às próprias salas.</p></li>
+          <li><strong>Retire o acesso sem apagar o histórico.</strong><p><span class="controls">Suspender</span> bloqueia a conta e suas sessões, mantendo salas e publicação como estavam. <span class="controls">Reativar</span> mantém as permissões e exige novo login. <span class="controls">Redefinir senha</span> também exige que a pessoa entre novamente.</p></li>
+        </ol>
+        <p class="quiet">Para liberar edição de mídia, marque <span class="controls">Gerenciar lives e gravações</span> e toque em <span class="controls">Salvar permissões</span>. As contas existentes e o perfil <span class="controls">Organizador</span> começam com essa ação desligada. Aplicar o modelo <span class="controls">Completo</span> inclui todas as ações; confira os ajustes antes de salvar.</p>
+        <h3>Olho, lixeira e transferência</h3>
+        <p class="quiet">Com permissão de publicação, o olho mostra ou oculta a sala para espectadores. Com permissão de lixeira, <span class="controls">Excluir sala</span> retira o acesso normal, preservando eventos, resultados e mídia. <span class="controls">Restaurar</span> devolve a sala oculta; publique novamente se necessário.</p>
+        <p class="quiet">Para trocar o responsável, o Caio abre <span class="controls">Administração → Todas as salas → Transferir sala</span>. A publicação e o histórico são mantidos. O novo responsável recebe a gestão conforme suas permissões.</p>
+        <div class="callout"><p><strong>Sem scripts no dia a dia.</strong> Peça a gestão da conta pelo painel. Não envie senhas, tokens ou chaves no chat da sala e não inclua credenciais em relatórios.</p></div>
+      </section>
+
       <section class="sheet" id="finalizar" aria-labelledby="title-finalizar">
-        <div class="sheet-head"><strong>Consulta rápida</strong><span class="page-number">5 / 5</span></div>
+        <div class="sheet-head"><strong>Consulta rápida</strong><span class="page-number">9 / 9</span></div>
         <h2 id="title-finalizar">Próximo mapa, relatório e dúvidas.</h2>
         <p class="quiet">Depois de importar, confira o placar. Se a série continuar, joguem o próximo mapa e repitam a importação. Ao fechar a série, a aba <span class="controls">Relatório</span> reúne os resultados e as estatísticas.</p>
-        <p class="quiet">Use <span class="controls">Baixar relatório (.md)</span> para guardar o resumo ou <span class="controls">Exportar dados (.json)</span> para guardar o histórico completo. A <span class="controls">Linha do tempo</span> mostra as ações e tentativas de sorteio. Ao terminar, use <span class="controls">Sair do admin</span>.</p>
+        <p class="quiet">Use <span class="controls">Baixar relatório (.md)</span> para guardar o resumo ou <span class="controls">Exportar dados (.json)</span> para guardar os eventos da sala. A <span class="controls">Linha do tempo</span> mostra as ações, empates técnicos e tentativas de sorteio. Ao terminar, use <span class="controls">Sair do admin</span>.</p>
         <dl class="faq">
           <dt>Aparece “Espectador” e não vejo os controles.</dt><dd>Entre em <span class="controls">Entrar como admin</span> no mesmo navegador. Use suas credenciais; o site volta à sala. Em uma sala pública de outro organizador, você acompanha como espectador. Para administrá-la, peça ao Caio uma transferência.</dd>
           <dt>O link não abre para os amigos.</dt><dd>A sala pode estar oculta. Quem possui a sala e pode publicar usa o olho <span class="controls">Mostrar para espectadores</span> antes de compartilhar. Em um Preview, todos precisam usar o mesmo endereço com acesso liberado.</dd>
           <dt>Não consigo iniciar o veto ou sortear capitães.</dt><dd>O veto precisa de dez jogadores, cinco de cada lado. Capitães são sorteados durante a preparação, com pelo menos dois inscritos. Aceitar reinicia a montagem com eles.</dd>
           <dt>Não encontro a partida para importar.</dt><dd>Confira <code>Nome#TAG</code>, região e se a customizada terminou. O provedor pode demorar; tente depois ou use <code>tracker.gg/valorant/match/…</code>. Não preencha rounds manualmente.</dd>
           <dt>Quem cria contas ou muda o responsável pela sala?</dt><dd>O Caio faz isso em <span class="controls">Administração</span>. Para continuar uma sala antiga ou de outra pessoa, peça a transferência. Se esqueceu a senha, peça uma redefinição e entre novamente.</dd>
-          <dt>Por que não vejo um botão de ação?</dt><dd>Os controles dependem das permissões da conta e valem só nas próprias salas. O perfil Organizador começa sem correção de K/D/A e lixeira. Peça ao Caio o ajuste necessário.</dd>
-          <dt>Excluir apaga o histórico?</dt><dd>Não. A sala fica fora das listas e do acesso normal, com eventos e importações preservados. Quem possui a sala e pode usar a lixeira consegue restaurá-la; ela volta oculta e precisa ser publicada novamente.</dd>
+          <dt>Por que não vejo um botão de ação?</dt><dd>Os controles dependem das permissões da conta e valem só nas próprias salas. O perfil Organizador começa sem correção de K/D/A, lixeira e edição de mídia. Peça ao Caio o ajuste necessário.</dd>
+          <dt>Consigo ver as lives, mas não consigo alterá-las.</dt><dd>A consulta de mídia é liberada aos administradores ativos nas próprias salas. Para editar os links e cadastrar gravações, peça ao Caio a permissão <span class="controls">Gerenciar lives e gravações</span>. Publicar replays ou destacar eventos na home também exige <span class="controls">Publicar ou ocultar salas</span>.</dd>
+          <dt>Liguei a live e ela não apareceu na página inicial.</dt><dd>Ligar a Twitch, o YouTube ou a Kick não publica o player automaticamente. Para uma live sem evento, peça ao super admin a divulgação na página inicial. Na scrim, publique os links no bloco <span class="controls">Acompanhe este evento</span>.</dd>
         </dl>
         <div class="callout"><p><strong>Atalho para quem só vai assistir:</strong> abrir o link de uma sala publicada. Sem e-mail ou senha. Até a importação, aguarde o resultado do admin.</p></div>
-        <p class="footer-note">Este guia ensina o uso da sala. O Caio cria e gerencia as contas na área Administração. O PDF não contém credenciais.</p>
       </section>
     </main>
   </div>

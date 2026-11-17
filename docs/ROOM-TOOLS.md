@@ -1,6 +1,6 @@
 # Atenção do admin e sorteios da sala
 
-Esta feature parte da interface noturna atual de `main`. O redesign do PR #3 continua separado. O plano é acrescentar uma barra pequena antes das abas: **Chamar todos para cá** e **Sorteios**. Não há nova aba nem mudança do fluxo principal da scrim.
+A barra da sala oferece **Chamar todos para cá** e **Sorteios** antes das abas do VCT. O proprietário usa as ações liberadas para sua conta; o público acompanha sem login. O super admin pode conduzir qualquer sala.
 
 ## Fluxo
 
@@ -39,17 +39,19 @@ O admin preenche **O que estamos decidindo?**, por exemplo: “Quem começa bani
 
 ## Implementação e ambiente
 
-`POST /api/scrims/:id/tools` recebe foco, início e decisão. O servidor verifica a sessão de uma conta liberada como admin e gera o resultado com `crypto.randomInt`; o cliente não envia vencedores, candidatos ou relógios. Inícios repetidos com o mesmo `requestId` recuperam a mesma tentativa. Eventos internos de sorteio/foco são recusados em `/command`. A criação e a liberação das contas estão em [ADMIN-SETUP.md](ADMIN-SETUP.md).
+`POST /api/scrims/:id/tools` recebe foco, início e decisão. O servidor verifica conta ativa, sessão, propriedade e as capacidades correspondentes: `manageFocus` para chamar, `manageDraws` para os sorteios e também `manageTeams` para capitães. O resultado vem de `crypto.randomInt`; o cliente não envia vencedores, candidatos ou relógios. Inícios repetidos com o mesmo `requestId` recuperam a mesma tentativa. Eventos internos de sorteio/foco são recusados em `/command`. A criação e a liberação das contas estão em [ADMIN-SETUP.md](ADMIN-SETUP.md).
 
 Estado e eventos usam a transação e o controle de versão existentes em `append_scrim_event`, transmitidos por Supabase Realtime. Campos novos são opcionais, mantendo snapshots e replays antigos. O sorteio de times preserva capitães somente quando o novo comando pede isso explicitamente; eventos históricos conservam o comportamento anterior.
 
 Em salas ocultas, a leitura pública dos eventos é bloqueada pelo RLS. Os administradores recebem atualizações por consultas autenticadas a cada dois segundos; nenhum token de autenticação é entregue ao JavaScript para assinar um canal privado. Uma sala excluída não aceita foco, sorteios nem outros comandos até ser restaurada.
 
+O **empate técnico** é uma pausa persistente separada do bloqueio temporário de um sorteio pendente. Durante esse empate, não se iniciam sorteios nem se altera o jogo; o foco continua disponível conforme a permissão. Para voltar a jogar ou sortear, o responsável usa **Retomar scrim**. Veja [EVENT-PAUSE-MEDIA.md](EVENT-PAUSE-MEDIA.md).
+
 Não são necessárias novas variáveis, tabelas ou migrações SQL. Para aproveitar o ambiente existente, o foco também vira um evento com expiração. Isso aumenta a versão da sala: uma chamada durante a conferência de importação pode exigir nova revisão antes de confirmar o resultado.
 
-O usuário informou que não existe um tenant separado de desenvolvimento e pediu uso do projeto atual. A entrega é em branch e Preview próprios, sem merge automático. **Para testar em grupo, todos devem abrir o mesmo endereço de Preview e uma sala descartável criada nele.** A versão antiga de produção ainda não conhece a nova interface e suas guardas. Não é necessário abrir nem alterar as scrims existentes. `/preview.html` continua sendo a demonstração antiga e independente.
+Não existe um tenant separado de desenvolvimento neste projeto. Para testar uma atualização em grupo, todos devem abrir o mesmo endereço de Preview e uma sala descartável, com contas de teste e sem alterar scrims reais. A proteção da Vercel, quando presente, é separada do login do site. `/preview.html` é uma demonstração antiga e independente; não exerce o foco ou os sorteios de uma sala persistida.
 
-## Evidências de validação
+## Evidências da entrega inicial
 
 - `npm ci`, `npm run typecheck`, `npm run build` e `npm test` executados.
 - **95 testes passaram em 11 arquivos**, incluindo domínio, API, replay, autorização, CAS, idempotência, componentes, dois clientes Realtime simulados e SQL/RLS existentes em PGlite.

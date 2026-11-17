@@ -27,11 +27,17 @@ const ACCESS_MIGRATION = 'Aplique a migração 20261105_super_admin.sql no Supab
 const HOME_MIGRATION = 'Aplique a migração 20261112_home_feature.sql no Supabase para fixar uma sala na página inicial.';
 const STREAMS_MIGRATION = 'Aplique a migração 20261113_streams.sql no Supabase para configurar as transmissões.';
 const MULTISTREAM_MIGRATION = 'Aplique a migração 20261114_multiplatform_streams.sql no Supabase para YouTube, Kick e histórico de gravações.';
+const MEDIA_PERMISSIONS_MIGRATION = 'Aplique a migração 20261116_media_permissions.sql no Supabase para separar a consulta e a edição de lives e gravações.';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const hash = (key: string) => createHash('sha256').update(key).digest('hex');
 
 class ApiError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
+}
+
+async function requireMediaPermissionsSchema() {
+  const capabilities = await db('rpc/get_stream_capabilities', { method: 'POST', body: '{}' });
+  if (capabilities?.mediaPermissions !== true) throw new ApiError(503, MEDIA_PERMISSIONS_MIGRATION);
 }
 
 function env() {
@@ -279,15 +285,17 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     if (path[1] === 'stream-recordings' && (path.length === 2 || path.length === 3)) {
       const session = await actor();
       if (!session) throw new ApiError(403, 'Entre como administrador para gerenciar as gravações.');
-      requirePermission(session, 'editRoom');
       const identity = { p_actor_id: session.userId, p_actor_session_version: session.sessionVersion };
       if (path.length === 2 && req.method === 'GET') {
+        await requireMediaPermissionsSchema();
         const offset = Number(url.searchParams.get('offset') ?? '0');
         const roomId = url.searchParams.get('roomId');
         if (!Number.isSafeInteger(offset) || offset < 0 || offset > 100000 || roomId !== null && !ID_RE.test(roomId)) throw new ApiError(400, 'Página de gravações inválida.');
         if (roomId !== null) requireOwnership(await roomAccess(roomId), session);
         return send(res, 200, await db('rpc/list_stream_recordings', { method: 'POST', body: JSON.stringify({ ...identity, p_admin: true, p_offset: offset, p_room_id: roomId }) }));
       }
+      requirePermission(session, 'manageStreams');
+      await requireMediaPermissionsSchema();
       assertSameOrigin(req);
       const input = await jsonBody(req);
       if (path.length === 2 && req.method === 'POST') {
@@ -311,9 +319,13 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     if (path.length === 2 && path[1] === 'streams') {
       const session = await actor();
       if (!session) throw new ApiError(403, 'Entre como administrador para configurar transmissões.');
-      requirePermission(session, 'editRoom');
       const identity = { p_actor_id: session.userId, p_actor_session_version: session.sessionVersion };
-      if (req.method === 'GET') return send(res, 200, { broadcasts: await db('rpc/get_admin_broadcasts', { method: 'POST', body: JSON.stringify(identity) }) });
+      if (req.method === 'GET') {
+        await requireMediaPermissionsSchema();
+        return send(res, 200, { broadcasts: await db('rpc/get_admin_broadcasts', { method: 'POST', body: JSON.stringify(identity) }) });
+      }
+      requirePermission(session, 'manageStreams');
+      await requireMediaPermissionsSchema();
       if (req.method !== 'PUT') throw new ApiError(405, 'Método não permitido.');
       assertSameOrigin(req);
       const input = await jsonBody(req);

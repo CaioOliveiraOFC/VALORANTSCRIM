@@ -52,6 +52,7 @@ const homeMutations: Record<string, unknown>[] = [];
 const broadcasts = new Map<string, Broadcast>();
 const recordings = new Map<string, StreamRecording>();
 let missingMulti = false;
+let missingMediaPermissions = false;
 let missingStreams = false;
 let streamConflict = false;
 function call(path: string, method = 'GET', body?: unknown, headers: Record<string, string> = {}): Promise<{status: number; body: any; text: string; headers: http.IncomingHttpHeaders}> {
@@ -87,7 +88,7 @@ beforeAll(async () => {
 });
 afterAll(async () => { await new Promise<void>((resolve,reject) => server.close((e) => e ? reject(e) : resolve())); });
 beforeEach(() => {
-  recordings.clear(); missingMulti = false;
+  recordings.clear(); missingMulti = false; missingMediaPermissions = false;
   broadcasts.clear(); missingStreams = false; streamConflict = false;
   homeFeature = { roomId: null, version: 1 }; missingHomeFeature = false; homeMutations.length = 0;
   rows.clear(); policyCalls.length=0; appendMutations.length=0; ownerMutations.length=0; adminPermissions=presetPermissions('full'); missingPolicyRpc=false; revokeBeforeAppend=false; resetBeforeAppend=false; adminSessionVersion=0; transferBeforeAppend=false; dbCalls.length=0; authCalls.length=0; adminEnabled=true; adminCanDelete=false; accessConflict=false; missingAccessColumns=false; missingAccessRpc=false; deleteBeforeAppend=false; accessMutations.length=0; casConflict=false; lookupAllowed=true; providerCalls=0;
@@ -138,7 +139,7 @@ beforeEach(() => {
     const ok=(body:unknown)=>new Response(body===null ? null : JSON.stringify(body),{status:body===null?204:200});
     if (['get_stream_capabilities', 'list_stream_recordings', 'get_stream_recording', 'create_stream_recording', 'manage_stream_recording'].some(name => u.pathname.endsWith(`/rpc/${name}`))) {
       if (missingMulti) return new Response(JSON.stringify({ code: 'PGRST202' }), { status: 404 });
-      if (u.pathname.endsWith('/get_stream_capabilities')) return ok({ multiplatform: true, recordings: true });
+      if (u.pathname.endsWith('/get_stream_capabilities')) return ok({ multiplatform: true, recordings: true, mediaPermissions: !missingMediaPermissions });
       const publicRecord = (r: StreamRecording) => r.isPublic && (r.roomId === null || rows.get(r.roomId)?.is_public && rows.get(r.roomId)?.deleted_at === null);
       const ownedRecord = (r: StreamRecording) => payload.p_actor_id === SUPER_ID || r.roomId && rows.get(r.roomId)?.owner_user_id === payload.p_actor_id;
       if (u.pathname.endsWith('/list_stream_recordings')) {
@@ -147,6 +148,7 @@ beforeEach(() => {
         return ok({ recordings: list.slice(offset,offset+24), total: list.length, nextOffset: offset+24<list.length ? offset+24 : null });
       }
       if (u.pathname.endsWith('/create_stream_recording')) {
+        if (!canActor(payload.p_actor_id, 'manageStreams')) return new Response(JSON.stringify({ message: 'ADMIN_FORBIDDEN' }), { status: 400 });
         if ([...recordings.values()].some(r => r.roomId === payload.p_room_id && r.source.channel === payload.p_source.channel && r.source.platform === payload.p_source.platform)) return new Response(JSON.stringify({ message: 'DUPLICATE_RECORDING' }), { status: 400 });
         const r: StreamRecording = { id: payload.p_id, roomId: payload.p_room_id, title: payload.p_title, source: payload.p_source, isPublic: payload.p_is_public, version: 1, createdAt: Date.now() };
         recordings.set(r.id, r); return ok(r);
@@ -154,6 +156,7 @@ beforeEach(() => {
       const r = recordings.get(payload.p_id);
       if (!r || !(publicRecord(r) || ownedRecord(r))) return new Response(JSON.stringify({ message: 'RECORDING_NOT_FOUND' }), { status: 400 });
       if (u.pathname.endsWith('/get_stream_recording')) return ok(r);
+      if (!canActor(payload.p_actor_id, 'manageStreams')) return new Response(JSON.stringify({ message: 'ADMIN_FORBIDDEN' }), { status: 400 });
       if (!ownedRecord(r)) return new Response(JSON.stringify({ message: 'ADMIN_FORBIDDEN' }), { status: 400 });
       if (r.version !== payload.p_expected_version) return new Response(JSON.stringify({ message: 'STALE_RECORDING' }), { status: 400 });
       r.isPublic=payload.p_is_public; r.version++; return ok(r);
@@ -163,6 +166,7 @@ beforeEach(() => {
       if (u.pathname.endsWith('/get_public_broadcasts')) return ok([...broadcasts.values()].filter(item => item.enabled && (item.roomId === null || item.promoteHome && rows.get(item.roomId)?.is_public && rows.get(item.roomId)?.deleted_at === null)));
       if (u.pathname.endsWith('/get_admin_broadcasts')) return ok([...broadcasts.values()].filter(item => payload.p_actor_id === SUPER_ID || item.roomId && rows.get(item.roomId)?.owner_user_id === payload.p_actor_id));
       if (u.pathname.endsWith('/get_room_broadcast')) return ok(broadcasts.get(payload.p_room_id)?.enabled ? broadcasts.get(payload.p_room_id) : undefined);
+      if (!canActor(payload.p_actor_id, 'manageStreams')) return new Response(JSON.stringify({ message: 'ADMIN_FORBIDDEN' }), { status: 400 });
       const key = payload.p_room_id ?? 'home';
       const version = broadcasts.get(key)?.version ?? 0;
       if (streamConflict || payload.p_expected_version !== version) return new Response(JSON.stringify({ message: 'STALE_BROADCAST' }), { status: 400 });
@@ -1036,7 +1040,7 @@ describe('Twitch broadcasts', () => {
     expect((await viewerCall('/api/admin/streams')).status).toBe(403);
     expect((await adminCall('/api/admin/streams', 'PUT', config)).status).toBe(403);
     adminPermissions.editRoom = false;
-    expect((await adminCall('/api/admin/streams')).status).toBe(403);
+    expect((await adminCall('/api/admin/streams')).status).toBe(200);
     const result = await superCall('/api/admin/streams', 'PUT', config);
     expect(result.status).toBe(200);
     expect(result.body).toMatchObject({ version: 1, channels: [{ channel: 'masterpfi', label: 'Master' }] });
@@ -1072,7 +1076,7 @@ describe('Twitch broadcasts', () => {
 
 describe('Multiplatform streams and replay archive', () => {
   const video = { roomId: null, title: 'Replay do clube', url: 'https://youtu.be/aqz-KE-bpKQ', label: 'YouTube', isPublic: true };
-  it('normalizes provider-specific links and keeps existing Twitch writes working before the upgrade', async () => {
+  it('normalizes provider-specific links and blocks media writes while required schema upgrades are pending', async () => {
     const live = { roomId: null, title: 'Clube', channels: [{ channel: 'https://kick.com/MASTERPFI', label: 'Kick' }, { channel: 'https://youtube.com/live/aqz-KE-bpKQ', label: 'YT' }], enabled: true, promoteHome: false, expectedVersion: 0 };
     const result = await superCall('/api/admin/streams', 'PUT', live);
     expect(result.status).toBe(200);
@@ -1080,7 +1084,7 @@ describe('Multiplatform streams and replay archive', () => {
     missingMulti = true;
     expect((await superCall('/api/admin/streams', 'PUT', { ...live, expectedVersion: 1 })).status).toBe(503);
     const legacy = await superCall('/api/admin/streams', 'PUT', { ...live, expectedVersion: 1, channels: [{ channel: 'masterpfi', label: 'Twitch' }] });
-    expect(legacy.status).toBe(200);
+    expect(legacy.status).toBe(503);
   });
   it('stores a fixed replay, exposes it publicly and preserves it after live visibility changes', async () => {
     const created = await superCall('/api/admin/stream-recordings', 'POST', video);
@@ -1106,6 +1110,64 @@ describe('Multiplatform streams and replay archive', () => {
     const result = await superCall('/api/admin/stream-recordings');
     expect(result.status).toBe(503); expect(result.body.error).toContain('20261114_multiplatform_streams.sql');
     expect((await viewerCall('/api/streams/recordings')).body).toEqual({ recordings: [], total: 0, nextOffset: null });
+  });
+});
+
+describe('Media consultation and explicit editing permission', () => {
+  const live = { title: 'Live privada', channels: [{ channel: 'masterpfi', label: 'Master' }], enabled: false, promoteHome: false, expectedVersion: 0 };
+  const replay = { title: 'Replay privado', url: 'https://youtu.be/aqz-KE-bpKQ', label: 'YT', isPublic: false };
+  it('lets an active admin consult only their own private media without editing rights', async () => {
+    const mine = (await adminCall('/api/scrims', 'POST', { title: 'Minha sala oculta', format: 'bo3', isPublic: false })).body.id;
+    const foreign = (await otherCall('/api/scrims', 'POST', { title: 'Outra sala oculta', format: 'bo3', isPublic: false })).body.id;
+    expect((await adminCall('/api/admin/streams', 'PUT', { ...live, roomId: mine })).status).toBe(200);
+    expect((await otherCall('/api/admin/streams', 'PUT', { ...live, roomId: foreign })).status).toBe(200);
+    const ownReplay = await adminCall('/api/admin/stream-recordings', 'POST', { ...replay, roomId: mine });
+    const foreignReplay = await otherCall('/api/admin/stream-recordings', 'POST', { ...replay, roomId: foreign });
+    expect(ownReplay.status).toBe(201); expect(foreignReplay.status).toBe(201);
+    adminPermissions = noPermissions();
+    expect((await adminCall('/api/admin/streams')).body.broadcasts.map((item: Broadcast) => item.roomId)).toEqual([mine]);
+    expect((await adminCall('/api/admin/stream-recordings')).body.recordings.map((item: StreamRecording) => item.id)).toEqual([ownReplay.body.id]);
+    expect((await adminCall(`/api/admin/stream-recordings?roomId=${mine}`)).status).toBe(200);
+    expect((await adminCall(`/api/admin/stream-recordings?roomId=${foreign}`)).status).toBe(404);
+    expect((await adminCall(`/api/streams/recordings/${ownReplay.body.id}`)).status).toBe(200);
+    expect((await adminCall(`/api/streams/recordings/${foreignReplay.body.id}`)).status).toBe(404);
+    expect((await viewerCall('/api/streams/recordings')).body.recordings).toEqual([]);
+    expect((await viewerCall('/api/admin/streams')).status).toBe(403);
+    expect((await viewerCall('/api/admin/stream-recordings')).status).toBe(403);
+    adminPermissions.editRoom = true;
+    expect((await adminCall('/api/admin/streams', 'PUT', { ...live, roomId: mine, expectedVersion: 1, enabled: true })).status).toBe(403);
+    expect((await adminCall('/api/admin/stream-recordings', 'POST', { ...replay, roomId: mine })).status).toBe(403);
+    expect((await adminCall(`/api/admin/stream-recordings/${ownReplay.body.id}`, 'PUT', { expectedVersion: 1, isPublic: true })).status).toBe(403);
+    expect(broadcasts.get(mine)).toMatchObject({ version: 1, enabled: false });
+    expect(recordings.get(ownReplay.body.id)).toMatchObject({ version: 1, isPublic: false });
+    adminEnabled = false;
+    expect((await adminCall('/api/admin/streams')).status).toBe(403);
+    expect((await adminCall('/api/admin/stream-recordings')).status).toBe(403);
+  });
+  it('grants and revokes media editing independently from room editing and publication', async () => {
+    const mine = (await adminCall('/api/scrims', 'POST', { title: 'Minha sala', format: 'bo3', isPublic: true })).body.id;
+    adminPermissions = noPermissions();
+    adminPermissions.manageStreams = true;
+    expect((await adminCall('/api/admin/streams', 'PUT', { ...live, roomId: mine, enabled: true })).status).toBe(200);
+    expect((await adminCall('/api/admin/stream-recordings', 'POST', { ...replay, roomId: mine })).status).toBe(201);
+    expect((await adminCall('/api/admin/streams', 'PUT', { ...live, roomId: mine, expectedVersion: 1, enabled: true, promoteHome: true })).status).toBe(403);
+    expect((await adminCall('/api/admin/stream-recordings', 'POST', { ...replay, roomId: mine, isPublic: true })).status).toBe(403);
+    expect((await adminCall('/api/admin/streams', 'PUT', { ...live, roomId: null, enabled: true })).status).toBe(403);
+    adminPermissions.manageStreams = false;
+    expect((await adminCall('/api/admin/streams', 'PUT', { ...live, roomId: mine, expectedVersion: 1 })).status).toBe(403);
+    expect((await adminCall('/api/admin/streams')).status).toBe(200);
+  });
+  it('identifies the pending permission migration without interrupting public viewing', async () => {
+    missingMediaPermissions = true;
+    for (const path of ['/api/admin/streams', '/api/admin/stream-recordings']) {
+      const response = await adminCall(path);
+      expect(response.status).toBe(503);
+      expect(response.body.error).toContain('20261116_media_permissions.sql');
+    }
+    expect((await superCall('/api/admin/streams', 'PUT', { ...live, roomId: null })).status).toBe(503);
+    expect((await superCall('/api/admin/stream-recordings', 'POST', { ...replay, roomId: null })).status).toBe(503);
+    expect((await viewerCall('/api/streams')).status).toBe(200);
+    expect((await viewerCall('/api/streams/recordings')).status).toBe(200);
   });
 });
 

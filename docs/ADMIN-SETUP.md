@@ -11,15 +11,17 @@ O uso da sala está no [guia do administrador](../public/guia-admin.html), publi
 
 A última migração fixa o UUID do Caio como o único super admin, importa os acessos anteriores e atribui a ele as salas existentes, sem mudar histórico ou publicação. Não há nova variável de ambiente nem SQL recorrente para cada organizador.
 
+Essas são as migrações de acesso. Para uma instalação completa, incluindo destaque, lives e gravações, siga a [ordem em README-VERCEL.md](../README-VERCEL.md#ordem-das-migrações). Em um projeto em uso, a atualização de mídia exige [publicação coordenada da aplicação e do SQL](../README-VERCEL.md#atualizar-permissões-de-mídia-em-um-projeto-em-uso).
+
 A política de acesso fica nas tabelas privadas do banco; o Auth cuida do e-mail e da senha. `app_metadata` só é lido na importação inicial dos administradores antigos. Os scripts [admin-access.sql](admin-access.sql) e [room-delete-access.sql](room-delete-access.sql) são **LEGACY**, mantidos sem mudança de comportamento para a versão anterior. Depois da migração, use a tela de administração: mudar flags nesses scripts ou em `user_metadata` não altera a política da versão nova.
 
 ## Criar, editar ou suspender
 
 Use **Adicionar administrador** para informar nome, e-mail de login e senha. O e-mail pode ser fictício em formato válido, com confirmação automática; não depende de entrega de e-mail. A senha é digitada ou gerada na tela e compartilhada uma vez, sem entrar na listagem ou auditoria.
 
-- **Organizador:** ações normais de condução nas próprias salas, com correção de K/D/A e lixeira desligadas inicialmente.
-- **Completo:** todas as ações nas próprias salas.
-- **Ajustes individuais:** os onze controles de permissão permitem adaptar o perfil. Nenhum deles concede a gestão de contas ou o acesso global do Caio.
+- **Organizador:** ações normais de condução nas próprias salas, com correção de K/D/A, lixeira e edição de mídia desligadas inicialmente.
+- **Completo:** todas as ações nas próprias salas, incluindo **Gerenciar lives e gravações** quando o perfil é escolhido explicitamente.
+- **Ajustes individuais:** os doze controles de permissão permitem adaptar o perfil. Nenhum deles concede a gestão de contas ou o acesso global do Caio.
 
 Contas anteriores mantêm suas capacidades importadas, agora limitadas às próprias salas. Uma conta comum não administra salas de outro organizador: as públicas são vistas como espectador e as ocultas são inacessíveis.
 
@@ -35,12 +37,37 @@ Só o Caio pode transferir salas na aba **Todas as salas**, inclusive para si. A
 
 O público só lê salas publicadas e não excluídas. Ocultas não aparecem na lista nem abrem por link, relatório ou eventos públicos. Exclusão lógica conserva eventos e importações; restaurar sempre volta como oculta. O login substitui os links antigos com `#admin=…`, que não concedem edição.
 
+Uma interrupção da scrim pode ser registrada como **empate técnico**. O proprietário com **Editar a sala** pausa e retoma o evento preservando times, mapas e placar. A sala pausada sai dos destaques ativos e continua no histórico. Isso é diferente de ocultar ou excluir a sala; veja [EVENT-PAUSE-MEDIA.md](EVENT-PAUSE-MEDIA.md).
+
+## Consulta e edição de lives e gravações
+
+Toda conta administrativa ativa encontra **Lives e gravações**, mesmo quando não recebeu permissão para alterar mídia. Um organizador consulta as configurações e os replays das próprias salas; o super admin consulta todas. Abrir esse painel não concede controle sobre a sala de outra pessoa nem acesso a suas gravações privadas.
+
+A edição de links, publicação/ocultação da live e cadastro de replays exigem **Gerenciar lives e gravações** (`manageStreams`), separada de **Editar a sala**. Publicar gravações ou destacar o evento na home também respeita a capacidade **Publicar ou ocultar salas** e a publicação da sala.
+
+Em uma janela curta, publique primeiro a aplicação compatível com `manageStreams`
+e execute logo depois `20261116_media_permissions.sql`, uma vez, após as migrações
+anteriores de streams. O deploy não executa esse arquivo. Aplicar o SQL enquanto
+a versão antiga está em produção interrompe login e acesso administrativo,
+inclusive do Caio, porque ela rejeita a política de doze chaves. A aplicação nova
+aceita a política anterior; até o SQL, somente a mídia administrativa responde
+503 por migração pendente e as operações de contas com doze capacidades ficam
+indisponíveis. Consulte a [publicação e recuperação coordenadas](../README-VERCEL.md#atualizar-permissões-de-mídia-em-um-projeto-em-uso) antes de iniciar.
+
+Após concluir os dois passos, todos os admins existentes que não são super admin
+começam com `manageStreams` desligado, inclusive os que já usavam o perfil
+Completo. O Caio pode conceder a capacidade individualmente; escolher
+explicitamente Completo após a atualização também a inclui. A migração não apaga
+configurações, gravações ou histórico.
+
+O caminho principal é abrir a própria scrim e usar **Acompanhe este evento → Ao vivo** ou **Gravações**. O evento já está definido; não é preciso cadastrar uma transmissão em outro painel primeiro. A divulgação independente na home continua exclusiva do super admin. Veja o [passo a passo de lives e gravações](STREAMS.md).
+
 ## Ambiente compartilhado e validação
 
 Preview e Production usam o mesmo Supabase neste projeto. Versões antigas da API podem ignorar visibilidade, capacidades e propriedade; `service_role` não é limitado pelo RLS. Use apenas dados fictícios no Preview e só confie no isolamento depois de atualizar os domínios ativos e aposentar ou bloquear deployments antigos com acesso de serviço ao banco.
 
 A proteção do Preview da Vercel é um acesso separado do login do site. Para testar com outras pessoas, libere esse acesso e usem todos o mesmo endereço de Preview.
 
-Antes de mesclar, aplique a migração e siga a [conferência em SUPER-ADMIN.md](SUPER-ADMIN.md#conferência-no-preview-e-publicação) com Caio e dois organizadores de teste. Confira propriedade, perfis, suspensão/reativação, invalidação de sessões após troca de senha, transferência, cadastro pendente e leitura pública/oculta. Preserve as salas reais.
+Para validar uma atualização de acesso, siga a ordem de publicação coordenada e a [conferência em SUPER-ADMIN.md](SUPER-ADMIN.md#conferência-no-preview-e-publicação) com Caio e dois organizadores de teste. Confira propriedade, perfis, consulta de mídia sem edição, concessão/revogação da edição, suspensão/reativação, invalidação de sessões após troca de senha, transferência, cadastro pendente e leitura pública/oculta. Preserve as salas reais.
 
 Os testes locais não validam uma conta Auth real nem substituem a instalação da migração. A configuração de servidor existente continua necessária; não publique senhas, tokens ou a chave de serviço nos arquivos do repositório ou no PR.

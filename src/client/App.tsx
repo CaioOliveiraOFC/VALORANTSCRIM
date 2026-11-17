@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type MouseEvent } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import { Home } from './components/Home';
 import { AdminPortal } from './components/AdminPortal';
 import { SuperAdminPanel } from './components/SuperAdminPanel';
@@ -6,43 +6,13 @@ import { ScrimRoom } from './components/ScrimRoom';
 import { AdminAuthProvider, useAdminAuth } from './hooks/useAdminAuth';
 import { navigate, useRoute, type Route } from './router';
 import './components/AdminPortal.css';
-import { Landing, X1Page } from './features/lobby/Landing';
+import { Landing } from './features/lobby/Landing';
 import { Brand } from './ui/Brand';
 import { StreamsAdmin } from './features/streams/StreamsAdmin';
 import { RecordingsPage } from './features/streams/RecordingsPage';
 
-const BrasaPreview = lazy(() => import('./features/brasa-preview/BrasaPreview'));
-
-function PreviewEntry() {
-  const target = new URLSearchParams(location.search).get('tela');
-  useEffect(() => {
-    if (target !== 'x1' && target !== 'sugestoes') {
-      history.replaceState(null, '', '/');
-      dispatchEvent(new PopStateEvent('popstate'));
-    }
-  }, [target]);
-  if (target !== 'x1' && target !== 'sugestoes')
-    return (
-      <main className="page">
-        <a href="/">Abrir a Brasa</a>
-      </main>
-    );
-  return (
-    <Suspense
-      fallback={
-        <main className="page">
-          <p role="status">Abrindo a prévia X1…</p>
-        </main>
-      }
-    >
-      <BrasaPreview />
-    </Suspense>
-  );
-}
-
 export function App() {
   const route = useRoute();
-  if (route.name === 'brasa-preview') return <PreviewEntry />;
   return (
     <AdminAuthProvider>
       <AppLayout route={route} />
@@ -63,7 +33,6 @@ function AppLayout({ route }: { route: Route }) {
       management: 'Administração · Brasa',
       streams: 'Lives e gravações · Brasa',
       recordings: 'Gravações · Brasa',
-      x1: 'X1 · Brasa',
       scrim: 'VCT · Brasa',
     };
     document.title = titles[route.name] ?? 'Brasa';
@@ -114,9 +83,6 @@ function AppLayout({ route }: { route: Route }) {
           >
             VCT
           </a>
-          <a href="/x1" onClick={internal} aria-current={route.name === 'x1' ? 'page' : undefined}>
-            X1
-          </a>
           <a
             href="/historico"
             onClick={internal}
@@ -145,7 +111,7 @@ function AppLayout({ route }: { route: Route }) {
               Administração
             </a>
           )}
-          {auth.status === 'admin' && auth.can('editRoom') && <a className="account-admin-link" href="/admin/lives" onClick={internal} aria-current={route.name === 'streams' ? 'page' : undefined}>Lives e gravações</a>}
+          {auth.status === 'admin' && <a className="account-admin-link" href="/admin/lives" onClick={internal} aria-current={route.name === 'streams' ? 'page' : undefined}>Lives e gravações</a>}
         </div>
         {auth.status === 'admin' && (
           <div className="account-session">
@@ -181,8 +147,6 @@ function AppLayout({ route }: { route: Route }) {
           <Home />
         ) : route.name === 'history' ? (
           <Home filter="finished" />
-        ) : route.name === 'x1' ? (
-          <X1Page />
         ) : (
           <Landing />
         )}

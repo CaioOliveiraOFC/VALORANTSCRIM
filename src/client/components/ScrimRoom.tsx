@@ -250,7 +250,7 @@ export function ScrimRoom({ scrimId }: { scrimId: string }) {
         </div>
 
         <ScrimLifecycle state={ctx.state} canEdit={can('editRoom')} act={act} blocked={blocking} />
-        <EventMedia roomId={scrimId} roomTitle={ctx.state.title} phase={ctx.state.phase} canEdit={can('editRoom')} canPublish={can('publishRooms')} isPublic={access?.isPublic === true} />
+        <EventMedia roomId={scrimId} roomTitle={ctx.state.title} phase={ctx.state.phase} canView={isAdmin} canEdit={can('manageStreams')} canPublish={can('publishRooms')} isPublic={access?.isPublic === true} />
         <RoomTools state={ctx.state} isAdmin={isAdmin} canFocus={can('manageFocus')} canDraw={can('manageDraws') && ctx.state.phase !== 'paused'} canManageTeams={can('manageTeams')} request={roomRequest} now={now} onFocusAll={focusEveryone} onBlockingChange={setToolsBlocking} />
 
         <nav className="tabs" role="tablist" aria-label="Navegação da scrim">
