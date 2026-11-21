@@ -1,0 +1,9 @@
+raw/
+project/assets/*.mp4
+project/assets/*.webm
+project/node_modules/
+project/.hyperframes/
+project/.cache/
+project/renders/
+*.log
+__pycache__/

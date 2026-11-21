@@ -1,0 +1,12 @@
+{
+  "name": "brasa-scrim-main-loop-pilot",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "../hf.sh preview",
+    "check": "../hf.sh check",
+    "render": "../hf.sh render --quality looks --workers 3 --crf 20 -o ../raw/criar-scrim.mp4",
+    "snapshot": "../hf.sh snapshot --review",
+    "publish": "../hf.sh publish"
+  }
+}

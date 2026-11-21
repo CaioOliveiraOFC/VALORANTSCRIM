@@ -1,0 +1,41 @@
+{
+  "duration": 202.06666666666666,
+  "durationLabel": "3:22",
+  "chapters": [
+    {
+      "title": "Entrar como administrador",
+      "start": 0.0,
+      "label": "0:00"
+    },
+    {
+      "title": "Criar e publicar a sala",
+      "start": 42.86666666666667,
+      "label": "0:42"
+    },
+    {
+      "title": "Compartilhar com espectadores",
+      "start": 58.666666666666664,
+      "label": "0:58"
+    },
+    {
+      "title": "Cadastrar os dez jogadores",
+      "start": 66.1,
+      "label": "1:06"
+    },
+    {
+      "title": "Formar times e escolher capitães",
+      "start": 130.06666666666666,
+      "label": "2:10"
+    },
+    {
+      "title": "Concluir o veto MD3",
+      "start": 147.53333333333333,
+      "label": "2:27"
+    },
+    {
+      "title": "Conferir a scrim pronta",
+      "start": 186.0,
+      "label": "3:06"
+    }
+  ]
+}

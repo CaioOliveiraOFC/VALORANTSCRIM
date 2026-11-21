@@ -7,3 +7,7 @@ data/
 !.env.example
 
 .vercel/
+
+# Temporary Hyperframes capture/transaction directories.
+public/pilotos/work-*/
+public/pilotos/.*.hf-transaction-*/
